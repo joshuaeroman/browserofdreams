@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+*.png
+# Icons are required by the PWA manifest — keep them, ignore other images
+!icons/*.png
+!docs/*.png
+dist/*.map

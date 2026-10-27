@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en" data-era="2000s">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Browser of Dreams</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" id="meta-theme-color" content="#1f4b99" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Browser of Dreams" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
+  <link rel="alternate icon" type="image/png" href="icons/favicon-32.png" />
+  <link rel="stylesheet" href="dist/app.css" />
+  <script src="dist/app.js" defer></script>
+</head>
+<body>
+  <div id="browser-window" class="browser-window">
+    <!-- Window Title Bar -->
+    <header id="title-bar" class="title-bar">
+      <div class="title-bar-left">
+        <span id="window-icon" class="window-icon" aria-hidden="true">🌐</span>
+        <span id="window-title" class="window-title">Browser of Dreams — [about:dreams]</span>
+      </div>
+      <div class="title-bar-right">
+        <div class="window-controls" aria-label="Window Controls">
+          <button type="button" id="win-min" class="win-btn win-min" title="Compact / Minimize UI view">_</button>
+          <button type="button" id="win-max" class="win-btn win-max" title="Toggle Fullscreen (Maximize Window)">□</button>
+          <button type="button" id="win-close" class="win-btn win-close" title="Close / Return to Home Directory">×</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Classic Menu Bar (visible especially in 90s/2000s themes) -->
+    <nav id="menu-bar" class="menu-bar" aria-label="Browser menu">
+      <div class="menu-items">
+        <button type="button" class="menu-item" id="menu-home-btn"><u>F</u>ile</button>
+        <button type="button" class="menu-item" id="menu-source-btn"><u>V</u>iew Source</button>
+        <button type="button" class="menu-item" id="menu-bookmarks-btn"><u>B</u>ookmarks</button>
+        <button type="button" class="menu-item" id="menu-regenerate-imgs-btn"><u>I</u>mages</button>
+        <button type="button" class="menu-item" id="menu-settings-btn"><u>O</u>ptions</button>
+      </div>
+    </nav>
+
+    <!-- Main Navigation Toolbar -->
+    <div id="nav-toolbar" class="nav-toolbar">
+      <div class="toolbar-buttons">
+        <button type="button" id="btn-back" class="tool-btn" title="Back (Alt+Left)" disabled>
+          <span class="tool-icon">◀</span>
+          <span class="tool-label">Back</span>
+        </button>
+        <button type="button" id="btn-forward" class="tool-btn" title="Forward (Alt+Right)" disabled>
+          <span class="tool-icon">▶</span>
+          <span class="tool-label">Forward</span>
+        </button>
+        <button type="button" id="btn-reload" class="tool-btn" title="Reload / Re-dream this page (Ctrl+R)">
+          <span class="tool-icon">↻</span>
+          <span class="tool-label">Reload</span>
+        </button>
+        <button type="button" id="btn-stop" class="tool-btn" title="Stop loading (Esc)" disabled>
+          <span class="tool-icon">✕</span>
+          <span class="tool-label">Stop</span>
+        </button>
+        <button type="button" id="btn-home" class="tool-btn" title="Dream Directory Home">
+          <span class="tool-icon">🏠</span>
+          <span class="tool-label">Home</span>
+        </button>
+        <div class="toolbar-divider"></div>
+        <button type="button" id="btn-source" class="tool-btn" title="View Generated HTML Source">
+          <span class="tool-icon">&lt;/&gt;</span>
+          <span class="tool-label">Source</span>
+        </button>
+        <button type="button" id="btn-settings" class="tool-btn tool-btn-accent" title="Settings">
+          <span class="tool-icon">⚙</span>
+          <span class="tool-label">Settings</span>
+        </button>
+        <button type="button" id="btn-install-app" class="tool-btn tool-btn-install" title="Install Browser of Dreams as Dedicated Web App" hidden>
+          <span class="tool-icon">💾</span>
+          <span class="tool-label">Install App</span>
+        </button>
+      </div>
+
+      <!-- Animated Throbber (Classic Netscape/IE corner box) -->
+      <div id="throbber" class="throbber" title="Browser of Dreams">
+        <div class="throbber-orbit">
+          <span class="throbber-glyph">✦</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Address & Time Machine Bar -->
+    <form id="omnibox-form" class="location-bar" autocomplete="off">
+      <label for="url-input" class="location-label" id="location-label">Address:</label>
+      <div class="url-input-wrap">
+        <span id="site-favicon" class="site-favicon" aria-hidden="true">📄</span>
+        <input
+          type="text"
+          id="url-input"
+          class="url-input"
+          placeholder="Enter any hypothetical URL (e.g. nycnews.com) or search query..."
+          value="nycnews.com"
+          spellcheck="false"
+        />
+      </div>
+
+      <div class="time-machine-controls">
+        <label for="date-input" class="date-label" title="Target Historical or Future Date">Date:</label>
+        <button type="button" id="btn-prev-day" class="date-step-btn" title="Previous Day (-1d)">−1d</button>
+        <input
+          type="date"
+          id="date-input"
+          class="date-input"
+          value="1999-12-31"
+          min="1969-01-01"
+          max="2150-12-31"
+        />
+        <button type="button" id="btn-next-day" class="date-step-btn" title="Next Day (+1d)">+1d</button>
+      </div>
+
+      <button type="submit" id="btn-go" class="go-btn" title="Dream this webpage">
+        <span class="go-arrow">➔</span>
+        <span>Go</span>
+      </button>
+    </form>
+
+    <!-- Bookmarks / Quick Links Bar -->
+    <div id="bookmarks-bar" class="bookmarks-bar"></div>
+
+    <!-- Main Viewport Container -->
+    <main id="viewport-container" class="viewport-container">
+      <!-- Built-in Home / Dream Directory View -->
+      <section id="home-screen" class="home-screen">
+        <div class="home-hero">
+          <div class="home-badge" id="home-era-badge">TIME MACHINE READY</div>
+          <h1 class="home-title">Browser of Dreams</h1>
+          <p class="home-subtitle">
+            Enter any real or hypothetical URL and select any date in history—or the future.
+            An LLM codes an authentic, era-appropriate webpage on the fly, while an Image Model
+            paints period banner advertisements and news photographs.
+          </p>
+
+          <div id="home-api-warning" class="home-api-banner">
+            <div class="home-api-banner-text">
+              <strong>API Key Needed:</strong> Connect <strong>Google Cloud Agent Platform (Vertex AI)</strong>,
+              <strong>Google AI Studio</strong>, or <strong>OpenRouter</strong> to start dreaming pages.
+            </div>
+            <button type="button" id="home-open-settings-btn" class="home-cta-btn">
+              ⚙ Configure Provider &amp; API Key
+            </button>
+          </div>
+        </div>
+
+        <div class="home-grid-section">
+          <h2 class="home-section-heading">Featured Time-Travel Portals</h2>
+          <div class="portal-cards-grid" id="featured-portals-grid">
+            <!-- Populated and wired by app.js -->
+          </div>
+        </div>
+
+        <div class="home-grid-section" id="recent-history-section" hidden>
+          <div class="home-section-header-row">
+            <h2 class="home-section-heading">Recently Dreamed Pages (Cached)</h2>
+            <button type="button" id="btn-clear-cache-home" class="small-action-btn">Clear Cache</button>
+          </div>
+          <div class="recent-list" id="recent-history-list"></div>
+        </div>
+      </section>
+
+      <!-- Sandboxed Iframe for Generated Era Webpage -->
+      <iframe
+        id="dream-frame"
+        class="dream-frame"
+        title="Dreamed Webpage Viewport"
+        sandbox="allow-scripts allow-forms allow-same-origin"
+        hidden
+      ></iframe>
+
+      <!-- Era-Authentic Connection / Streaming Overlay -->
+      <div id="loading-overlay" class="loading-overlay" hidden>
+        <div class="loading-dialog">
+          <div class="loading-dialog-titlebar">
+            <span id="loading-dialog-title">Connecting to host...</span>
+            <button type="button" id="loading-cancel-btn" class="win-btn win-close" title="Cancel">×</button>
+          </div>
+          <div class="loading-dialog-body">
+            <!-- Authentic Retro File Transfer Animation Stage (SHELL32.DLL Style) -->
+            <div class="transfer-animation-stage" id="transfer-animation-stage">
+              <div class="transfer-stage-node transfer-source-node" id="transfer-source-node" title="Remote Host / Web Node">
+                <span class="transfer-icon-source" id="transfer-icon-source">🌐</span>
+              </div>
+              <div class="transfer-track">
+                <div class="transfer-flying-item item-1">
+                  <span class="flying-glyph" id="flying-glyph-1">📄</span>
+                </div>
+                <div class="transfer-flying-item item-2">
+                  <span class="flying-glyph" id="flying-glyph-2">📄</span>
+                </div>
+                <div class="transfer-flying-item item-3">
+                  <span class="flying-glyph" id="flying-glyph-3">📄</span>
+                </div>
+              </div>
+              <div class="transfer-stage-node transfer-dest-node" id="transfer-dest-node" title="Local Target">
+                <span class="transfer-icon-dest" id="transfer-icon-dest">📁</span>
+              </div>
+            </div>
+
+            <div class="loading-status-row">
+              <div class="loading-animation-icon" id="loading-anim-icon">🌐</div>
+              <div class="loading-details">
+                <div id="loading-headline" class="loading-headline">Contacting host: www.nycnews.com...</div>
+                <div id="loading-subline" class="loading-subline">Temporal target: Friday, December 31, 1999</div>
+              </div>
+            </div>
+            <div class="progress-track">
+              <div id="loading-progress-bar" class="progress-fill"></div>
+            </div>
+            <div class="loading-metrics-row">
+              <span id="loading-bytes">0.0 KB received</span>
+              <span id="loading-elapsed">0.0s</span>
+            </div>
+            <div class="loading-actions">
+              <button type="button" id="loading-stop-btn" class="dialog-btn">Stop Transfer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Provider and model choices, shown only for the generation that needs them -->
+    <div id="model-strip" class="model-strip" aria-label="Generation models">
+      <div class="model-pair" id="text-model-pair">
+        <span class="model-pair-label">Text</span>
+        <select id="text-provider-select" class="model-strip-select" aria-label="Text provider"></select>
+        <select id="text-model-select" class="model-strip-select" aria-label="Text model"></select>
+        <input id="text-model-custom" class="model-strip-custom" type="text" hidden spellcheck="false" aria-label="Custom text model id" placeholder="model id" />
+      </div>
+      <p id="text-model-empty" class="model-strip-empty" hidden>Add a provider in Settings</p>
+      <div class="model-pair" id="image-model-pair" hidden>
+        <span class="model-pair-label">Image</span>
+        <select id="image-provider-select" class="model-strip-select" aria-label="Image provider"></select>
+        <select id="image-model-select" class="model-strip-select" aria-label="Image model"></select>
+        <input id="image-model-custom" class="model-strip-custom" type="text" hidden spellcheck="false" aria-label="Custom image model id" placeholder="model id" />
+      </div>
+      <p id="image-model-empty" class="model-strip-empty" hidden>Save an image provider in Settings</p>
+    </div>
+
+    <!-- Bottom Status Bar -->
+    <footer id="status-bar" class="status-bar">
+      <div class="status-panel status-main" id="status-text">
+        Document: Done
+      </div>
+      <div class="status-panel status-progress" id="status-progress-panel" hidden>
+        <div class="status-progress-bar" id="status-progress-bar"></div>
+      </div>
+      <div class="status-panel status-memes" id="status-memes-display" title="Click to view cultural zeitgeist keywords/memes for this date">
+        🎭 Memes: Ready
+      </div>
+      <div class="status-panel status-images" id="status-images" title="Click to regenerate page images/ads">
+        🖼️ Images: Ready
+      </div>
+      <div class="status-panel status-date" id="status-date-display">
+        📅 Dec 31, 1999
+      </div>
+      <div class="status-panel status-security" title="Temporal Sandbox Active">
+        🔒 Dream Sandbox
+      </div>
+    </footer>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal-backdrop" hidden>
+    <div class="modal-window" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+      <div class="modal-titlebar">
+        <span id="settings-modal-title">⚙ Browser of Dreams — Settings</span>
+        <button type="button" id="settings-close-btn" class="win-btn win-close" title="Close">×</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="settings-section">
+          <h3 class="settings-heading">Providers</h3>
+          <p class="field-help">Save a key on each provider you use. Pick the provider and model in the bar at the bottom of the window when you generate text or images.
+            Keys are stored only in this browser's <code>localStorage</code> and are sent directly to the provider you choose — this app has no server of its own.</p>
+          <ul id="provider-account-list" class="provider-account-list"></ul>
+          <div id="provider-edit-panel" class="provider-edit-panel" hidden>
+            <h4 id="provider-edit-title" class="provider-edit-title">Provider</h4>
+            <div class="cors-extension-notice" id="provider-cors-notice" hidden>
+              <strong>Browser CORS extension required for OpenCode.</strong>
+              <code>opencode.ai</code> omits <code>Access-Control-Allow-Origin</code> on inference POST routes.
+              Model discovery via <code>GET /models</code> works without an extension.
+            </div>
+            <div class="form-row" id="edit-auth-row" hidden>
+              <label for="edit-auth-type">Authentication:</label>
+              <select id="edit-auth-type" class="settings-input">
+                <option value="apikey">API Key (Express Mode — auto-discovers project)</option>
+                <option value="gcloud">Access Token / Bearer (gcloud auth print-access-token)</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="edit-api-key" id="edit-key-label">API Key:</label>
+              <div class="input-with-btn">
+                <input type="password" id="edit-api-key" class="settings-input" autocomplete="off" placeholder="Paste API key" />
+                <button type="button" id="edit-toggle-key-vis" class="small-btn" title="Show or hide key">👁</button>
+              </div>
+            </div>
+            <div class="form-row two-col" id="edit-project-row" hidden>
+              <div>
+                <label for="edit-project-id">Project ID <span class="muted-hint">(optional for Express Key)</span>:</label>
+                <input type="text" id="edit-project-id" class="settings-input" placeholder="Auto-discovered via countTokens probe" />
+              </div>
+              <div>
+                <label for="edit-location">Location:</label>
+                <input type="text" id="edit-location" class="settings-input" placeholder="global" />
+              </div>
+            </div>
+            <div class="form-row" id="edit-endpoint-row" hidden>
+              <label for="edit-endpoint">Endpoint:</label>
+              <input type="text" id="edit-endpoint" class="settings-input" />
+            </div>
+            <div class="form-row" id="edit-thinking-row" hidden>
+              <label for="edit-thinking-budget">Thinking Token Budget:</label>
+              <input type="number" id="edit-thinking-budget" class="settings-input" min="0" max="32768" step="256" value="0" />
+              <div class="field-help">Set to 0 for fastest HTML page generation.</div>
+            </div>
+            <div class="provider-edit-actions">
+              <button type="button" id="provider-edit-save" class="small-btn">Save key</button>
+              <button type="button" id="provider-edit-fetch" class="small-btn">Fetch models</button>
+              <button type="button" id="provider-edit-close" class="small-btn">Close</button>
+            </div>
+            <div id="provider-edit-status" class="field-help"></div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3 class="settings-heading">Dream</h3>
+          <div class="form-row">
+            <label for="temperature-slider">Creativity / Temperature (<span id="temp-val-label">0.7</span>):</label>
+            <input type="range" id="temperature-slider" min="0" max="1.2" step="0.05" value="0.7" />
+          </div>
+          <div class="form-row">
+            <label for="settings-timeline-slider">
+              Timeline Reality Dial — Grounded ↔ Alternate History (<span id="settings-timeline-label">0% — 🏛️ Grounded (Strict Historical Accuracy)</span>):
+            </label>
+            <div class="settings-timeline-slider-row">
+              <span class="timeline-pole-label">🏛️ Grounded</span>
+              <input type="range" id="settings-timeline-slider" min="0" max="100" step="5" value="0" />
+              <span class="timeline-pole-label">🌌 Alternate History</span>
+            </div>
+            <div id="settings-timeline-desc" class="field-help">
+              100% anchored to real-world history, real companies, real events, and authentic facts of the selected date.
+            </div>
+          </div>
+          <div class="form-row two-col">
+            <div>
+              <label for="image-mode-select">Image Generation Mode:</label>
+              <select id="image-mode-select" class="settings-input">
+                <option value="all">All Images (Banner Ads + Editorial Photos)</option>
+                <option value="ads">Advertisements Only (data-dream-role="ad")</option>
+                <option value="photos">Editorial / Page Photos Only</option>
+                <option value="ondemand">On-Demand Only (Click image slot to generate)</option>
+                <option value="off">Off (Fastest — Inline SVG / Retro Placeholders)</option>
+              </select>
+            </div>
+            <div>
+              <label for="image-engine-select">Image Render Engine / Style:</label>
+              <select id="image-engine-select" class="settings-input">
+                <option value="image-model">🖼️ Dedicated Image Model (Raster Photo/Ad)</option>
+                <option value="text-pixel">👾 Text Model → Retro Pixel Art</option>
+                <option value="text-svg">✨ Text Model → Vector SVG Art</option>
+                <option value="text-auto">🕰️ Text Model → Era-Adaptive (Pixel ≤1999, SVG ≥2000)</option>
+              </select>
+            </div>
+          </div>
+          <div id="image-engine-hint" class="field-help"></div>
+          <div class="form-row">
+            <label for="max-images-slider">Max Auto-Generated Images per Page (<span id="max-images-label">12</span>):</label>
+            <input type="range" id="max-images-slider" min="1" max="12" step="1" value="12" />
+            <div class="field-help">
+              Pixel, SVG, and era-adaptive art use the text provider and model. A dedicated image model uses the Image pair in the bar below.
+            </div>
+          </div>
+          <div class="form-row">
+            <p id="pwa-status-line" class="field-help">Running in a browser tab. Use Install on the toolbar when the browser offers it.</p>
+            <button type="button" id="btn-modal-install-app" class="small-btn">Install web app</button>
+            <label class="settings-check">
+              <input type="checkbox" id="chk-show-standalone-titlebar" />
+              <span>Show simulated retro title bar inside standalone window</span>
+            </label>
+          </div>
+          <p id="build-stamp" class="field-help"></p>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" id="btn-clear-cache" class="dialog-btn">🗑️ Clear Cached Pages &amp; Images</button>
+        <div class="modal-footer-right">
+          <button type="button" id="settings-cancel-btn" class="dialog-btn">Cancel</button>
+          <button type="button" id="settings-save-btn" class="dialog-btn dialog-btn-primary">Save Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Source Modal -->
+  <div id="source-modal" class="modal-backdrop" hidden>
+    <div class="modal-window modal-large" role="dialog" aria-modal="true" aria-labelledby="source-modal-title">
+      <div class="modal-titlebar">
+        <span id="source-modal-title">📄 Page Source — Browser of Dreams</span>
+        <button type="button" id="source-close-btn" class="win-btn win-close" title="Close">×</button>
+      </div>
+      <div class="modal-body source-modal-body">
+        <textarea id="source-textarea" class="source-textarea" readonly spellcheck="false"></textarea>
+      </div>
+      <div class="modal-footer">
+        <span id="source-char-count" class="field-help">0 bytes</span>
+        <div class="modal-footer-right">
+          <button type="button" id="btn-copy-source" class="dialog-btn">📋 Copy HTML</button>
+          <button type="button" id="btn-download-source" class="dialog-btn">💾 Download .html</button>
+          <button type="button" id="source-done-btn" class="dialog-btn dialog-btn-primary">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+</body>
+</html>

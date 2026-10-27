@@ -1,0 +1,121 @@
+/* ==========================================================================
+   Bottom Status Bar
+   ========================================================================== */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  background: var(--chrome-flat);
+  border-top: 1px solid var(--border-light);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.status-panel {
+  padding: 2px 8px;
+  border-top: 1px solid var(--border-dark);
+  border-left: 1px solid var(--border-dark);
+  border-right: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-main {
+  flex: 1 1 auto;
+}
+
+.status-progress {
+  width: 140px;
+  height: 14px;
+  padding: 1px;
+  background: var(--input-bg);
+  border-top: 1px solid var(--border-dark);
+  border-left: 1px solid var(--border-dark);
+  border-right: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.status-progress[hidden] {
+  display: none !important;
+}
+
+.status-progress-bar {
+  height: 100%;
+  width: 0%;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--accent-color) 0px,
+    var(--accent-color) 8px,
+    transparent 8px,
+    transparent 10px
+  );
+  background-size: 20px 100%;
+  animation: progress-marquee 0.9s steps(2, end) infinite;
+  transition: width 0.15s ease-out;
+}
+
+.status-memes {
+  cursor: pointer;
+  max-width: 250px;
+}
+
+.status-memes:hover {
+  background: var(--btn-hover-bg);
+}
+
+.status-images {
+  cursor: pointer;
+}
+
+.model-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 4px 8px;
+  background: var(--chrome-flat);
+  border-top: 1px solid var(--border-light);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.model-pair {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.model-pair-label {
+  font-weight: 700;
+}
+
+.model-strip-select,
+.model-strip-custom {
+  height: 22px;
+  max-width: 240px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  background: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--input-border);
+  border-radius: var(--btn-radius);
+}
+
+.model-strip-custom {
+  width: 160px;
+  padding: 0 6px;
+}
+
+.model-strip-empty {
+  margin: 0;
+  color: var(--chrome-muted);
+}
+

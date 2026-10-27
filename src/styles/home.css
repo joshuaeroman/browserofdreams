@@ -1,0 +1,225 @@
+/* ==========================================================================
+   Viewport Container & Home Screen
+   ========================================================================== */
+.viewport-container {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--viewport-bg);
+  border-top: 2px solid var(--border-dark);
+  border-left: 2px solid var(--border-dark);
+  overflow: hidden;
+}
+
+html[data-era="modern"] .viewport-container {
+  border: none;
+}
+
+.dream-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #ffffff;
+  display: block;
+}
+
+.dream-frame[hidden] {
+  display: none !important;
+}
+
+/* Home Screen */
+.home-screen {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  padding: 28px 24px 48px;
+  user-select: text;
+}
+
+.home-hero {
+  max-width: 880px;
+  margin: 0 auto 28px;
+  padding: 24px;
+  background: var(--card-bg);
+  border: 2px solid var(--card-border);
+  border-radius: var(--btn-radius);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+html[data-era="1990s"] .home-hero {
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #404040;
+  border-bottom: 2px solid #404040;
+  box-shadow: none;
+}
+
+.home-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  border-radius: var(--btn-radius);
+  margin-bottom: 8px;
+}
+
+.home-title {
+  margin: 0 0 8px;
+  font-size: 26px;
+}
+
+.home-subtitle {
+  margin: 0 0 16px;
+  line-height: 1.5;
+  color: var(--chrome-muted);
+  font-size: 14px;
+}
+
+.home-api-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 180, 0, 0.14);
+  border: 1px solid #d97706;
+  border-radius: var(--btn-radius);
+  flex-wrap: wrap;
+}
+
+.home-api-banner.configured {
+  background: rgba(22, 163, 74, 0.12);
+  border-color: #16a34a;
+}
+
+.home-cta-btn {
+  padding: 7px 14px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  border: 1px solid var(--border-deep);
+  border-radius: var(--btn-radius);
+  cursor: pointer;
+}
+
+.home-grid-section {
+  max-width: 880px;
+  margin: 0 auto 28px;
+}
+
+.home-section-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.home-section-heading {
+  font-size: 15px;
+  margin: 0 0 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.portal-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.portal-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--btn-radius);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.1s ease, border-color 0.15s ease;
+}
+
+html[data-era="1990s"] .portal-card {
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #404040;
+  border-bottom: 2px solid #404040;
+}
+
+.portal-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-color);
+}
+
+.portal-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.portal-card-url {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--chrome-text);
+}
+
+.portal-card-date {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  background: var(--btn-bg);
+  border: 1px solid var(--border-dark);
+  border-radius: var(--btn-radius);
+}
+
+.portal-card-desc {
+  font-size: 12px;
+  color: var(--chrome-muted);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* Recent History List */
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--btn-radius);
+  cursor: pointer;
+}
+
+.recent-item:hover {
+  border-color: var(--accent-color);
+}
+
+.recent-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.recent-item-url {
+  font-weight: 700;
+}
+
+.recent-item-date {
+  font-size: 11px;
+  color: var(--chrome-muted);
+}
+

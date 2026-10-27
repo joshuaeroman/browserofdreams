@@ -1,0 +1,19 @@
+{
+  "name": "browser-of-dreams",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Retro Web Simulator & Temporal AI Dream Engine",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "serve": "python3 -m http.server 8765 --bind 127.0.0.1",
+    "icons": "python3 scripts/generate-icons.py",
+    "app": "node scripts/launch-app.mjs",
+    "test": "npm run build && node --test \"tests/*.test.mjs\""
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

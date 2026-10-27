@@ -1,0 +1,310 @@
+/* ==========================================================================
+   Modals (Settings & View Source)
+   ========================================================================== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 100;
+}
+
+.modal-backdrop[hidden] {
+  display: none !important;
+}
+
+.modal-window {
+  width: 100%;
+  max-width: 660px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--chrome-flat);
+  color: var(--chrome-text);
+  border-top: 2px solid var(--border-light);
+  border-left: 2px solid var(--border-light);
+  border-right: 2px solid var(--border-deep);
+  border-bottom: 2px solid var(--border-deep);
+  border-radius: var(--btn-radius);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.modal-window.modal-large {
+  max-width: 860px;
+  height: 82vh;
+}
+
+.modal-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--titlebar-bg);
+  color: var(--titlebar-text);
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.modal-body {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+
+.source-modal-body {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+}
+
+.source-textarea {
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  resize: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 10px;
+  background: #0e1116;
+  color: #e6edf3;
+  border: 1px solid var(--border-dark);
+}
+
+.settings-section {
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border-dark);
+  border-radius: var(--btn-radius);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.settings-heading {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--chrome-text);
+  border-bottom: 1px solid var(--border-dark);
+  padding-bottom: 4px;
+}
+
+.form-row {
+  margin-bottom: 10px;
+}
+
+.form-row:last-child {
+  margin-bottom: 0;
+}
+
+.form-row label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.form-row.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .form-row.two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.settings-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  background: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--input-border);
+  border-radius: var(--btn-radius);
+}
+
+.input-with-btn {
+  display: flex;
+  gap: 6px;
+}
+
+.small-btn,
+.small-action-btn,
+.dialog-btn {
+  height: 30px;
+  padding: 0 12px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--btn-bg);
+  color: var(--chrome-text);
+  border-top: 1px solid var(--border-light);
+  border-left: 1px solid var(--border-light);
+  border-right: 1px solid var(--border-deep);
+  border-bottom: 1px solid var(--border-deep);
+  border-radius: var(--btn-radius);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.small-btn.full-width {
+  width: 100%;
+}
+
+.dialog-btn-primary {
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.field-help,
+.muted-hint {
+  font-size: 11px;
+  color: var(--chrome-muted);
+  font-weight: 400;
+  margin-top: 3px;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-dark);
+  background: var(--chrome-flat);
+  flex-shrink: 0;
+}
+
+.modal-footer-right {
+  display: flex;
+  gap: 8px;
+}
+
+.provider-account-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.provider-account-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.provider-account-name {
+  font-weight: 700;
+  min-width: 210px;
+}
+
+.provider-account-key {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  flex: 1 1 120px;
+  color: var(--chrome-muted);
+}
+
+.provider-account-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.provider-edit-panel {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-dark);
+}
+
+.provider-edit-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.provider-edit-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.settings-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: normal;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.cors-extension-notice {
+  margin-bottom: 10px;
+  padding: 9px 11px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid #d97706;
+  border-radius: var(--btn-radius);
+  color: var(--chrome-text);
+}
+
+.cors-inline-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid #d97706;
+  border-radius: 3px;
+}
+
+/* PWA Installation Section in Settings Modal */
+.pwa-status-box {
+  background: var(--input-bg);
+  border: 1px solid var(--border-deep);
+  border-radius: var(--btn-radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pwa-status-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pwa-status-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.pwa-status-text-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pwa-actions-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.pwa-hint-text {
+  font-size: 11px;
+  line-height: 1.35;
+}

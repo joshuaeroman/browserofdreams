@@ -1,0 +1,165 @@
+/* ==========================================================================
+   Browser of Dreams — Era-Adaptive Stylesheet
+   Supports: [data-era="pre90s" | "1990s" | "2000s" | "modern" | "future"]
+   ========================================================================== */
+
+:root {
+  --font-ui: "Tahoma", "Verdana", system-ui, -apple-system, sans-serif;
+  --font-mono: "Courier New", Courier, monospace;
+
+  /* Default (2000s XP / Web 2.0) */
+  --bg-outer: #245edb;
+  --chrome-bg: linear-gradient(180deg, #f7f6f0 0%, #ece9d8 60%, #dfd8c0 100%);
+  --chrome-flat: #ece9d8;
+  --chrome-text: #111111;
+  --chrome-muted: #555246;
+  --titlebar-bg: linear-gradient(180deg, #0997ff 0%, #0053ee 8%, #0050ee 40%, #06f 88%, #003dd9 100%);
+  --titlebar-text: #ffffff;
+  --border-light: #ffffff;
+  --border-dark: #aca899;
+  --border-deep: #716f64;
+  --input-bg: #ffffff;
+  --input-text: #000000;
+  --input-border: #7f9db9;
+  --btn-bg: linear-gradient(180deg, #ffffff 0%, #f0ede0 85%, #e2decb 100%);
+  --btn-hover-bg: linear-gradient(180deg, #fffdf6 0%, #f7ecc8 100%);
+  --btn-border: #003c74;
+  --btn-radius: 4px;
+  --accent-color: #21a121;
+  --accent-bg: linear-gradient(180deg, #52d452 0%, #249b24 100%);
+  --accent-text: #ffffff;
+  --viewport-bg: #f4f3ee;
+  --card-bg: #ffffff;
+  --card-border: #c6c2b0;
+  --throbber-bg: #002b5c;
+  --throbber-fg: #67d8ff;
+}
+
+/* --------------------------------------------------------------------------
+   1990s — Windows 95 / Netscape Navigator 4.0 Classic Bevel
+   -------------------------------------------------------------------------- */
+html[data-era="1990s"] {
+  --font-ui: "MS Sans Serif", "Geneva", "Tahoma", sans-serif;
+  --bg-outer: #008080;
+  --chrome-bg: #c0c0c0;
+  --chrome-flat: #c0c0c0;
+  --chrome-text: #000000;
+  --chrome-muted: #404040;
+  --titlebar-bg: linear-gradient(90deg, #000080 0%, #1084d0 100%);
+  --titlebar-text: #ffffff;
+  --border-light: #ffffff;
+  --border-dark: #808080;
+  --border-deep: #000000;
+  --input-bg: #ffffff;
+  --input-text: #000000;
+  --input-border: #808080;
+  --btn-bg: #c0c0c0;
+  --btn-hover-bg: #cccccc;
+  --btn-border: #000000;
+  --btn-radius: 0px;
+  --accent-color: #000080;
+  --accent-bg: #000080;
+  --accent-text: #ffffff;
+  --viewport-bg: #d4d0c8;
+  --card-bg: #efefef;
+  --card-border: #808080;
+  --throbber-bg: #001c38;
+  --throbber-fg: #00d8d8;
+}
+
+/* --------------------------------------------------------------------------
+   Pre-1990s — ARPANET / Phosphor CRT Terminal (1969–1989)
+   -------------------------------------------------------------------------- */
+html[data-era="pre90s"] {
+  --font-ui: "Courier New", "Lucida Console", monospace;
+  --bg-outer: #050805;
+  --chrome-bg: #0b140b;
+  --chrome-flat: #0b140b;
+  --chrome-text: #33ff66;
+  --chrome-muted: #1fa342;
+  --titlebar-bg: #142b14;
+  --titlebar-text: #55ff88;
+  --border-light: #33ff66;
+  --border-dark: #197330;
+  --border-deep: #093012;
+  --input-bg: #040904;
+  --input-text: #33ff66;
+  --input-border: #33ff66;
+  --btn-bg: #0f210f;
+  --btn-hover-bg: #1c3d1c;
+  --btn-border: #33ff66;
+  --btn-radius: 0px;
+  --accent-color: #ffb000;
+  --accent-bg: #2e2000;
+  --accent-text: #ffb000;
+  --viewport-bg: #060d06;
+  --card-bg: #0b190b;
+  --card-border: #28b84d;
+  --throbber-bg: #040a04;
+  --throbber-fg: #33ff66;
+}
+
+/* --------------------------------------------------------------------------
+   Modern (2010–2029) — Sleek Minimalist Dark Omnibox
+   -------------------------------------------------------------------------- */
+html[data-era="modern"] {
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --bg-outer: #0d0e12;
+  --chrome-bg: #181a20;
+  --chrome-flat: #181a20;
+  --chrome-text: #e6e8f0;
+  --chrome-muted: #9399ad;
+  --titlebar-bg: #111318;
+  --titlebar-text: #d8dce8;
+  --border-light: #2b2f3c;
+  --border-dark: #252834;
+  --border-deep: #0d0e12;
+  --input-bg: #0f1116;
+  --input-text: #f3f4f8;
+  --input-border: #323746;
+  --btn-bg: #232733;
+  --btn-hover-bg: #2f3444;
+  --btn-border: #363c4e;
+  --btn-radius: 8px;
+  --accent-color: #4f7cff;
+  --accent-bg: linear-gradient(135deg, #4f7cff 0%, #375edb 100%);
+  --accent-text: #ffffff;
+  --viewport-bg: #12141a;
+  --card-bg: #1c1f29;
+  --card-border: #2c3140;
+  --throbber-bg: #232733;
+  --throbber-fg: #6d94ff;
+}
+
+/* --------------------------------------------------------------------------
+   Future (2030+) — Quantum Holographic Cyber Chrome
+   -------------------------------------------------------------------------- */
+html[data-era="future"] {
+  --font-ui: "Orbitron", "Rajdhani", "Segoe UI", system-ui, sans-serif;
+  --bg-outer: #03040a;
+  --chrome-bg: linear-gradient(180deg, #0b0e21 0%, #070914 100%);
+  --chrome-flat: #090c1c;
+  --chrome-text: #d6f8ff;
+  --chrome-muted: #65a8c4;
+  --titlebar-bg: linear-gradient(90deg, #081229 0%, #1c0b36 50%, #071d30 100%);
+  --titlebar-text: #00f0ff;
+  --border-light: #00f0ff;
+  --border-dark: #1d4c6e;
+  --border-deep: #ff00a0;
+  --input-bg: #040711;
+  --input-text: #00f0ff;
+  --input-border: #00c3ff;
+  --btn-bg: rgba(0, 240, 255, 0.08);
+  --btn-hover-bg: rgba(0, 240, 255, 0.2);
+  --btn-border: #00f0ff;
+  --btn-radius: 2px;
+  --accent-color: #ff00a0;
+  --accent-bg: linear-gradient(90deg, #00c8ff 0%, #b700ff 100%);
+  --accent-text: #ffffff;
+  --viewport-bg: #050814;
+  --card-bg: rgba(12, 20, 44, 0.85);
+  --card-border: #00b8d4;
+  --throbber-bg: #090d24;
+  --throbber-fg: #00f0ff;
+}
+

@@ -1,0 +1,287 @@
+/* ==========================================================================
+   Loading / Streaming Dialog Overlay
+   ========================================================================== */
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.loading-overlay[hidden] {
+  display: none !important;
+}
+
+.loading-dialog {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 500px;
+  background: var(--chrome-flat);
+  color: var(--chrome-text);
+  border-top: 2px solid var(--border-light);
+  border-left: 2px solid var(--border-light);
+  border-right: 2px solid var(--border-deep);
+  border-bottom: 2px solid var(--border-deep);
+  border-radius: var(--btn-radius);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.loading-dialog-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  background: var(--titlebar-bg);
+  color: var(--titlebar-text);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.loading-dialog-body {
+  padding: 16px;
+}
+
+/* ==========================================================================
+   Classic Retro File Transfer Animation Stage (SHELL32.DLL Style)
+   ========================================================================== */
+.transfer-animation-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+  margin-bottom: 12px;
+  padding: 0 20px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-dark);
+  border-radius: var(--btn-radius);
+  overflow: hidden;
+  box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+html[data-era="1990s"] .transfer-animation-stage {
+  background: #c0c0c0;
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  border-radius: 0;
+}
+
+html[data-era="pre90s"] .transfer-animation-stage {
+  background: #040904;
+  border: 1px solid #33ff66;
+  border-radius: 0;
+  box-shadow: inset 0 0 12px rgba(51, 255, 102, 0.2);
+}
+
+html[data-era="modern"] .transfer-animation-stage {
+  background: #0f1116;
+  border: 1px solid #323746;
+  border-radius: 8px;
+}
+
+.transfer-stage-node {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  font-size: 26px;
+  line-height: 1;
+  user-select: none;
+}
+
+.transfer-source-node .transfer-icon-source {
+  display: inline-block;
+  animation: transfer-node-spin 2.4s steps(6, end) infinite;
+  transform-origin: center center;
+}
+
+.transfer-dest-node .transfer-icon-dest {
+  display: inline-block;
+  animation: transfer-dest-catch 1.5s steps(4, end) infinite;
+  transform-origin: bottom center;
+}
+
+@keyframes transfer-node-spin {
+  0% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.15) rotate(8deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes transfer-dest-catch {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  40% { transform: scale(1.14, 0.88) rotate(-4deg); }
+  70% { transform: scale(0.94, 1.06) rotate(3deg); }
+}
+
+.transfer-track {
+  position: absolute;
+  left: 60px;
+  right: 60px;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.transfer-flying-item {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  font-size: 19px;
+  line-height: 1;
+  opacity: 0;
+  margin-top: -10px;
+  animation: transfer-fly-arc 1.5s steps(8, end) infinite;
+}
+
+.transfer-flying-item.item-1 {
+  animation-delay: 0s;
+}
+
+.transfer-flying-item.item-2 {
+  animation-delay: 0.5s;
+}
+
+.transfer-flying-item.item-3 {
+  animation-delay: 1.0s;
+}
+
+@keyframes transfer-fly-arc {
+  0% {
+    left: 0%;
+    top: 52%;
+    transform: scale(0.65) rotate(-16deg);
+    opacity: 0;
+  }
+  15% {
+    left: 15%;
+    top: 36%;
+    transform: scale(1) rotate(-8deg);
+    opacity: 1;
+  }
+  50% {
+    left: 48%;
+    top: 26%;
+    transform: scale(1.1) rotate(4deg);
+    opacity: 1;
+  }
+  85% {
+    left: 80%;
+    top: 42%;
+    transform: scale(0.95) rotate(-3deg);
+    opacity: 1;
+  }
+  100% {
+    left: 92%;
+    top: 54%;
+    transform: scale(0.65) rotate(14deg);
+    opacity: 0;
+  }
+}
+
+html[data-era="pre90s"] .transfer-flying-item {
+  color: #33ff66;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  text-shadow: 0 0 6px #33ff66;
+}
+
+.loading-status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.loading-animation-icon {
+  font-size: 28px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  animation: pulse-globe 1.4s steps(4, end) infinite;
+  transform-origin: center center;
+}
+
+@keyframes pulse-globe {
+  0% { transform: scale(1) rotate(0deg); }
+  25% { transform: scale(1.12) rotate(-6deg); }
+  50% { transform: scale(1) rotate(0deg); }
+  75% { transform: scale(1.12) rotate(6deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.loading-headline {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 3px;
+}
+
+.loading-subline {
+  font-size: 11px;
+  color: var(--chrome-muted);
+}
+
+.progress-track {
+  width: 100%;
+  height: 16px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-dark);
+  border-radius: var(--btn-radius);
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 15%;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--accent-color) 0px,
+    var(--accent-color) 10px,
+    transparent 10px,
+    transparent 12px
+  );
+  background-size: 24px 100%;
+  animation: progress-marquee 0.9s steps(2, end) infinite;
+}
+
+@keyframes progress-marquee {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 24px 0;
+  }
+}
+
+.loading-metrics-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--chrome-muted);
+  margin-bottom: 10px;
+}
+
+.loading-stream-preview {
+  display: none !important;
+}
+
+.loading-actions {
+  display: flex;
+  justify-content: flex-end;
+}

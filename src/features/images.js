@@ -1,0 +1,470 @@
+import { state } from "../core/state.js";
+import { makeCacheKey, savePageCache, saveDomainImage, findMatchingDomainImage } from "../core/cache.js";
+import { getCurrentEntry } from "../core/history.js";
+import { extractDomain } from "../core/urls.js";
+import { getEraInfo } from "../core/era.js";
+import { getTimelineDivergenceProfile } from "../core/timeline.js";
+import { normalizeSupportedAspectRatio } from "../core/aspect.js";
+import { isTextArtEngine } from "../providers/adapter.js";
+import { getEffectiveImageProvider, hasValidCredentials, resolveConfig } from "../providers/registry.js";
+import { TextArtGenerator } from "./text-art.js";
+import { GeminiAdapter } from "../providers/gemini/index.js";
+import { OpenRouterAdapter } from "../providers/openrouter/index.js";
+
+export function resolveActiveTextArtModel(settings, imgProvider) {
+  var s = settings || state.settings;
+  var rawModel = String(s.imageModel || "").trim();
+  var isDedicatedImageId = /(-image|^imagen|flux|stable-diffusion|recraft|seedream)/i.test(rawModel);
+  if (!rawModel || rawModel === "same-as-page" || isDedicatedImageId) {
+    if (imgProvider === s.pageProvider) {
+      return s.pageModel || "gemini-3.8-flash";
+    }
+    if (imgProvider === "openrouter") return "google/gemini-2.5-flash";
+    if (imgProvider === "opencode-go") return "qwen3.8-flash";
+    if (imgProvider === "opencode-zen") return "claude-sonnet-4-6";
+    return "gemini-3.8-flash";
+  }
+  return rawModel;
+}
+
+export function downscaleImageToSlot(dataUrl, targetWidth, targetHeight, callback) {
+  if (typeof Image === "undefined" || typeof document === "undefined" || !dataUrl) {
+    return callback(null, dataUrl);
+  }
+  if (String(dataUrl).startsWith("data:image/svg+xml")) {
+    return callback(null, dataUrl);
+  }
+
+  var img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = function() {
+    try {
+      var w = parseInt(targetWidth, 10);
+      var h = parseInt(targetHeight, 10);
+      var naturalW = img.naturalWidth || img.width;
+      var naturalH = img.naturalHeight || img.height;
+
+      if (!w || !h || w <= 0 || h <= 0) {
+        var maxDim = 640;
+        if (naturalW > maxDim || naturalH > maxDim) {
+          if (naturalW >= naturalH) {
+            w = maxDim;
+            h = Math.round((naturalH / naturalW) * maxDim);
+          } else {
+            h = maxDim;
+            w = Math.round((naturalW / naturalH) * maxDim);
+          }
+        } else {
+          w = naturalW;
+          h = naturalH;
+        }
+      }
+
+      if (naturalW <= w && naturalH <= h) {
+        return callback(null, dataUrl);
+      }
+
+      var canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      var ctx = canvas.getContext("2d");
+
+      var scale = Math.max(w / naturalW, h / naturalH);
+      var scaledW = naturalW * scale;
+      var scaledH = naturalH * scale;
+      var offsetX = (w - scaledW) / 2;
+      var offsetY = (h - scaledH) / 2;
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, offsetX, offsetY, scaledW, scaledH);
+
+      var resized = canvas.toDataURL("image/jpeg", 0.85);
+      callback(null, resized);
+    } catch (e) {
+      console.warn("Could not downscale image on canvas:", e);
+      callback(null, dataUrl);
+    }
+  };
+  img.onerror = function() {
+    callback(null, dataUrl);
+  };
+  img.src = dataUrl;
+}
+
+export function patchCachedHtmlWithImage(targetUrl, targetDate, slotId, dataUrl, prompt) {
+  var url = targetUrl || (getCurrentEntry() && getCurrentEntry().url) || state.currentNavigationUrl;
+  var dateStr = targetDate || (getCurrentEntry() && getCurrentEntry().date) || state.currentNavigationDate;
+  if (!url || !slotId) return;
+
+  var cacheKey = makeCacheKey(url, dateStr, state.settings.timelineDivergence);
+  if (state.pageCache[cacheKey]) {
+    state.pageCache[cacheKey].slotImages = state.pageCache[cacheKey].slotImages || {};
+    state.pageCache[cacheKey].slotImages[slotId] = {
+      dataUrl: dataUrl,
+      prompt: prompt || "",
+      url: url,
+      date: dateStr,
+      timestamp: Date.now()
+    };
+    savePageCache(state.pageCache);
+  }
+}
+
+export function generateSingleSlotImage(slot, dateStr, postToIframe, onDone) {
+  var settings = state.settings;
+  var targetUrl = slot.targetUrl || state.currentNavigationUrl || (getCurrentEntry() && getCurrentEntry().url);
+  var targetDate = dateStr || slot.targetDate || state.currentNavigationDate || (getCurrentEntry() && getCurrentEntry().date);
+  var reqEpoch = slot.epoch !== undefined ? slot.epoch : state.navigationEpoch;
+
+  var activeEngine = settings.imageEngine || "image-model";
+  var imgProvider = getEffectiveImageProvider(settings, settings.imageProvider, settings.pageProvider, activeEngine);
+  if (!hasValidCredentials(settings, imgProvider)) {
+    if (targetUrl === state.currentNavigationUrl) {
+      postToIframe({
+        type: "DREAM_IMAGE_STATUS",
+        slotId: slot.slotId,
+        statusText: "⚠️ No API Key"
+      });
+    }
+    if (onDone) onDone();
+    return;
+  }
+
+  var era = getEraInfo(targetDate);
+  var timelineProfile = getTimelineDivergenceProfile(settings.timelineDivergence, era.year);
+  var styleMode = TextArtGenerator.resolveStyleMode(activeEngine, era.year);
+  var isPixel = styleMode === "pixel";
+  var activeModelId = isTextArtEngine(activeEngine)
+    ? resolveActiveTextArtModel(settings, imgProvider)
+    : (settings.imageModel || "gemini-3.1-flash-image");
+
+  var parts = String(targetDate || "1999-12-31").split("-");
+  var mm = parts[1] ? (parseInt(parts[1], 10) < 10 ? "0" + parseInt(parts[1], 10) : parts[1]) : "01";
+  var dd = parts[2] ? (parseInt(parts[2], 10) < 10 ? "0" + parseInt(parts[2], 10) : parts[2]) : "01";
+  var yyyy = parts[0] || "2001";
+  var formattedDateUs = mm + "/" + dd + "/" + yyyy;
+
+  var basePrompt = slot.prompt || "";
+  var dateTag = "[Date: " + formattedDateUs + " (" + era.formattedLong + ")]";
+  if (!basePrompt.includes(formattedDateUs)) {
+    basePrompt = dateTag + " " + basePrompt;
+  }
+
+  var fullPrompt = basePrompt + " " + era.year + " " +
+    (slot.role === "ad" ? "web ad." : "editorial photo.") + " " +
+    timelineProfile.imageDirective +
+    " Spoof brands only. Unnamed generic people. No real logos or public figures.";
+  var promptCacheKey = imgProvider + "__" + activeEngine + "__" + activeModelId + "__" + timelineProfile.tierKey + "__" + fullPrompt;
+
+  if (slot.forceRegenerate) {
+    delete state.imageMemoryCache[promptCacheKey];
+  }
+
+  if (!slot.forceRegenerate && state.imageMemoryCache[promptCacheKey]) {
+    var cachedData = state.imageMemoryCache[promptCacheKey];
+    patchCachedHtmlWithImage(targetUrl, targetDate, slot.slotId, cachedData, slot.prompt);
+    if (targetUrl === state.currentNavigationUrl) {
+      postToIframe({
+        type: "DREAM_IMAGE_READY",
+        slotId: slot.slotId,
+        dataUrl: cachedData,
+        isPixelArt: isPixel
+      });
+    }
+    if (onDone) onDone();
+    return;
+  }
+
+  if (targetUrl === state.currentNavigationUrl) {
+    postToIframe({
+      type: "DREAM_IMAGE_STATUS",
+      slotId: slot.slotId,
+      statusText: styleMode === "pixel"
+        ? "👾 Drawing Pixel Art..."
+        : (styleMode === "svg" ? "✨ Drawing Vector SVG..." : "⏳ Generating...")
+    });
+  }
+
+  function handleResult(err, rawDataUrl) {
+    if (err || !rawDataUrl) {
+      finalizeImage(err, null);
+      return;
+    }
+    downscaleImageToSlot(rawDataUrl, slot.width, slot.height, function(_resizeErr, finalDataUrl) {
+      finalizeImage(null, finalDataUrl || rawDataUrl);
+    });
+  }
+
+  function finalizeImage(err, dataUrl) {
+    var isCurrent = (targetUrl === state.currentNavigationUrl);
+
+    if (!err && dataUrl) {
+      state.imageMemoryCache[promptCacheKey] = dataUrl;
+      patchCachedHtmlWithImage(targetUrl, targetDate, slot.slotId, dataUrl, slot.prompt);
+      if (targetUrl) {
+        saveDomainImage({
+          domain: extractDomain(targetUrl),
+          date: targetDate,
+          divergence: settings.timelineDivergence,
+          role: slot.role,
+          width: slot.width,
+          height: slot.height,
+          aspectRatio: slot.aspectRatio,
+          prompt: slot.prompt,
+          alt: slot.alt,
+          dataUrl: dataUrl
+        });
+      }
+
+      // If any other slot on this page requested the same reuse or prompt, satisfy it immediately
+      if (Array.isArray(state.activeImageSlots)) {
+        for (var a = 0; a < state.activeImageSlots.length; a++) {
+          var other = state.activeImageSlots[a];
+          if (other.slotId !== slot.slotId && !other.alreadyLoaded) {
+            var matchPrompt = other.prompt && slot.prompt && other.prompt.trim() === slot.prompt.trim();
+            var matchReuse = other.reuse && (other.reuse === slot.reuse || other.reuse === slot.prompt || other.reuse === slot.label);
+            if (matchPrompt || matchReuse) {
+              other.alreadyLoaded = true;
+              other.inFlight = false;
+              patchCachedHtmlWithImage(targetUrl, targetDate, other.slotId, dataUrl, slot.prompt);
+              if (isCurrent) {
+                postToIframe({
+                  type: "DREAM_IMAGE_READY",
+                  slotId: other.slotId,
+                  dataUrl: dataUrl,
+                  isPixelArt: isPixel
+                });
+              }
+            }
+          }
+        }
+      }
+
+      if (isCurrent) {
+        postToIframe({
+          type: "DREAM_IMAGE_READY",
+          slotId: slot.slotId,
+          dataUrl: dataUrl,
+          isPixelArt: isPixel
+        });
+      }
+    } else {
+      if (isCurrent) {
+        postToIframe({
+          type: "DREAM_IMAGE_STATUS",
+          slotId: slot.slotId,
+          statusText: "⚠️ Retry Image"
+        });
+      }
+      if (err) console.warn("Browser of Dreams image generation error:", err);
+    }
+    if (onDone) onDone();
+  }
+
+  var rawSlotAspect = slot.aspectRatio || slot.dataDreamAspect || "";
+  var normalizedAspect = normalizeSupportedAspectRatio(rawSlotAspect, slot.width, slot.height, imgProvider);
+
+  var imgConf = resolveConfig(settings, imgProvider);
+
+  if (isTextArtEngine(activeEngine)) {
+    TextArtGenerator.generateArt({
+      provider: imgProvider,
+      model: activeModelId,
+      imageEngine: activeEngine,
+      styleMode: styleMode,
+      prompt: fullPrompt,
+      role: slot.role || "photo",
+      width: slot.width || (slot.role === "ad" ? 468 : 360),
+      height: slot.height || (slot.role === "ad" ? 60 : 240),
+      aspectRatio: normalizedAspect,
+      dateStr: targetDate,
+      timelineDivergence: settings.timelineDivergence,
+      endpoint: imgConf.endpoint,
+      apiKey: imgConf.apiKey,
+      googleApiKey: imgConf.apiKey,
+      opencodeApiKey: imgConf.apiKey,
+      openrouterApiKey: imgConf.apiKey,
+      geminiVertexAuthType: imgConf.vertexAuthType,
+      geminiProjectId: imgConf.geminiProjectId,
+      geminiLocation: imgConf.geminiLocation || "global"
+    }, handleResult);
+    return;
+  }
+
+  if (imgProvider === "openrouter") {
+    OpenRouterAdapter.generateImage({
+      apiKey: String(imgConf.apiKey || "").trim(),
+      model: settings.imageModel.trim() || "openai/gpt-image-2.5-flare",
+      prompt: fullPrompt,
+      aspectRatio: normalizedAspect,
+      width: slot.width,
+      height: slot.height
+    }, handleResult);
+  } else {
+    GeminiAdapter.generateImage({
+      endpoint: imgConf.endpoint,
+      apiKey: String(imgConf.apiKey || "").trim(),
+      model: settings.imageModel.trim() || "gemini-2.5-flash-image",
+      prompt: fullPrompt,
+      aspectRatio: normalizedAspect,
+      width: slot.width,
+      height: slot.height,
+      geminiAuthMethod: imgProvider,
+      geminiVertexAuthType: imgConf.vertexAuthType,
+      geminiProjectId: imgConf.geminiProjectId,
+      geminiLocation: imgConf.geminiLocation || "global"
+    }, handleResult);
+  }
+}
+
+export function handleDiscoveredImages(slots, dateStr, postToIframe, onStatusUpdate, pageUrl) {
+  var curEntry = getCurrentEntry();
+  var targetUrl = pageUrl || (curEntry && curEntry.url) || state.currentNavigationUrl;
+  var targetDate = dateStr || (curEntry && curEntry.date) || state.currentNavigationDate;
+  var currentEpoch = state.navigationEpoch;
+
+  if (!Array.isArray(state.activeImageSlots)) {
+    state.activeImageSlots = [];
+  }
+  var incoming = slots || [];
+  var addedSlots = [];
+
+  for (var i = 0; i < incoming.length; i++) {
+    var inSlot = incoming[i];
+    var exists = false;
+    for (var j = 0; j < state.activeImageSlots.length; j++) {
+      if (state.activeImageSlots[j].slotId === inSlot.slotId) {
+        exists = true;
+        break;
+      }
+    }
+    if (!exists) {
+      state.activeImageSlots.push(inSlot);
+      addedSlots.push(inSlot);
+    }
+  }
+
+  if (state.activeImageSlots.length === 0) {
+    if (onStatusUpdate) onStatusUpdate("🖼️ Images: None on page");
+    return;
+  }
+  if (addedSlots.length === 0) {
+    return;
+  }
+
+  // Restore any cached slot images for this history entry first
+  if (targetUrl) {
+    var cKey = makeCacheKey(targetUrl, targetDate, state.settings ? state.settings.timelineDivergence : 0);
+    var savedSlots = state.pageCache[cKey] && state.pageCache[cKey].slotImages;
+    if (savedSlots) {
+      for (var s = 0; s < addedSlots.length; s++) {
+        var sl = addedSlots[s];
+        var cached = savedSlots[sl.slotId];
+        if (cached) {
+          var cachedDataUrl = typeof cached === "string" ? cached : cached.dataUrl;
+          var cachedPrompt = typeof cached === "object" ? (cached.prompt || "") : "";
+          var cachedUrl = typeof cached === "object" ? (cached.url || "") : "";
+
+          // Check if prompt or URL conflict (prevents cross-page image pollution)
+          var hasPromptConflict = cachedPrompt && sl.prompt && cachedPrompt.trim() !== sl.prompt.trim();
+          var hasUrlConflict = cachedUrl && targetUrl && cachedUrl.toLowerCase() !== targetUrl.toLowerCase();
+
+          if (hasPromptConflict || hasUrlConflict) {
+            delete savedSlots[sl.slotId];
+            continue;
+          }
+
+          if (cachedDataUrl) {
+            sl.alreadyLoaded = true;
+            postToIframe({
+              type: "DREAM_IMAGE_READY",
+              slotId: sl.slotId,
+              dataUrl: cachedDataUrl
+            });
+          }
+        }
+      }
+    }
+
+    // Check domain image cache for reusable images on this domain and time period
+    var domain = extractDomain(targetUrl);
+    if (domain) {
+      var divergence = state.settings ? state.settings.timelineDivergence : 0;
+      for (var d = 0; d < addedSlots.length; d++) {
+        var dSlot = addedSlots[d];
+        if (!dSlot.alreadyLoaded) {
+          var matchedDomainImg = findMatchingDomainImage(domain, targetDate, divergence, dSlot);
+          if (matchedDomainImg && matchedDomainImg.dataUrl) {
+            dSlot.alreadyLoaded = true;
+            patchCachedHtmlWithImage(targetUrl, targetDate, dSlot.slotId, matchedDomainImg.dataUrl, matchedDomainImg.prompt || dSlot.prompt);
+            postToIframe({
+              type: "DREAM_IMAGE_READY",
+              slotId: dSlot.slotId,
+              dataUrl: matchedDomainImg.dataUrl
+            });
+          }
+        }
+      }
+    }
+  }
+
+  var mode = state.settings.imageMode || "all";
+  if (mode === "off" || mode === "ondemand") {
+    if (onStatusUpdate) onStatusUpdate("🖼️ " + state.activeImageSlots.length + " slot(s) (Click 🎨 to generate)");
+    return;
+  }
+
+  function updateImagesStatus() {
+    if (targetUrl !== state.currentNavigationUrl) return;
+    var inFlight = state.activeImageSlots.filter(function(s) { return s.inFlight; }).length;
+    var loaded = state.activeImageSlots.filter(function(s) { return s.alreadyLoaded; }).length;
+    var total = state.activeImageSlots.length;
+
+    if (inFlight > 0) {
+      if (onStatusUpdate) onStatusUpdate("🖼️ Loading images (" + loaded + "/" + total + ")...");
+    } else if (loaded > 0) {
+      if (onStatusUpdate) onStatusUpdate("🖼️ Images: Ready (" + loaded + ")");
+    } else {
+      if (onStatusUpdate) onStatusUpdate("🖼️ Images: " + total + " slot(s)");
+    }
+  }
+
+  var maxCount = parseInt(state.settings.maxImagesPerPage, 10) || 12;
+  var inFlightOrLoaded = state.activeImageSlots.filter(function(s) {
+    return s.inFlight || s.alreadyLoaded;
+  }).length;
+  var remainingSlotsToStart = Math.max(0, maxCount - inFlightOrLoaded);
+
+  var newlyEligible = addedSlots.filter(function(slot) {
+    if (slot.alreadyLoaded || slot.inFlight) return false;
+    if (mode === "ads") return slot.role === "ad";
+    if (mode === "photos") return slot.role !== "ad";
+    return true;
+  });
+
+  var toGenerate = newlyEligible.slice(0, remainingSlotsToStart);
+
+  if (toGenerate.length === 0) {
+    updateImagesStatus();
+    return;
+  }
+
+  for (var k = 0; k < toGenerate.length; k++) {
+    var slotItem = toGenerate[k];
+    slotItem.inFlight = true;
+    slotItem.targetUrl = targetUrl;
+    slotItem.targetDate = targetDate;
+    slotItem.epoch = currentEpoch;
+
+    generateSingleSlotImage(slotItem, targetDate, postToIframe, (function(item) {
+      return function() {
+        item.inFlight = false;
+        item.alreadyLoaded = true;
+        updateImagesStatus();
+      };
+    })(slotItem));
+  }
+
+  updateImagesStatus();
+}

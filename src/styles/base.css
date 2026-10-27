@@ -1,0 +1,61 @@
+/* ==========================================================================
+   Reset & Base Layout
+   ========================================================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Ensure [hidden] is never overridden by display: inline-flex or display: flex */
+[hidden],
+.tool-btn[hidden],
+button[hidden],
+span[hidden],
+div[hidden] {
+  display: none !important;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-ui);
+  background: var(--bg-outer);
+  color: var(--chrome-text);
+  font-size: 13px;
+  user-select: none;
+}
+
+.browser-window {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  background: var(--chrome-bg);
+  border: 2px solid var(--border-light);
+  border-right-color: var(--border-deep);
+  border-bottom-color: var(--border-deep);
+  overflow: hidden;
+}
+
+html[data-era="modern"] .browser-window {
+  border: none;
+}
+
+html[data-era="pre90s"] .browser-window {
+  border: 2px solid #33ff66;
+  box-shadow: inset 0 0 24px rgba(51, 255, 102, 0.15);
+}
+
+/* In standalone PWA mode, eliminate outer border so it doesn't double with OS frame */
+html.is-standalone .browser-window {
+  border: none !important;
+}
+
+@media (display-mode: standalone) {
+  .browser-window {
+    border: none !important;
+  }
+}
+
