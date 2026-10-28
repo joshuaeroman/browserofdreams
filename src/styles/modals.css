@@ -181,11 +181,69 @@
   border-top: 1px solid var(--border-dark);
   background: var(--chrome-flat);
   flex-shrink: 0;
+  gap: 8px;
+}
+
+.modal-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .modal-footer-right {
   display: flex;
   gap: 8px;
+}
+
+.dialog-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  line-height: normal;
+  box-sizing: border-box;
+}
+
+.dialog-link-btn:hover {
+  background: var(--btn-hover-bg);
+  color: var(--chrome-text);
+}
+
+.settings-about-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(128, 128, 128, 0.2);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-about-row .field-help {
+  margin: 0;
+}
+
+.settings-github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--chrome-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.settings-github-link:hover {
+  color: var(--chrome-text);
+}
+
+.settings-github-link svg,
+.dialog-link-btn svg {
+  flex-shrink: 0;
 }
 
 .provider-account-list {

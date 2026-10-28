@@ -111,6 +111,8 @@ var BrowserOfDreamsBundle = (() => {
     els.settingsCloseBtn = document.getElementById("settings-close-btn");
     els.settingsCancelBtn = document.getElementById("settings-cancel-btn");
     els.settingsSaveBtn = document.getElementById("settings-save-btn");
+    els.settingsGithubLink = document.getElementById("settings-github-link");
+    els.settingsGithubBtn = document.getElementById("settings-github-btn");
     els.providerAccountList = document.getElementById("provider-account-list");
     els.providerEditPanel = document.getElementById("provider-edit-panel");
     els.providerEditTitle = document.getElementById("provider-edit-title");
@@ -5308,7 +5310,7 @@ var BrowserOfDreamsBundle = (() => {
   }
 
   // build-stamp:build-stamp
-  var BUILD_TIME = "2026-10-27T23:17:55.698Z";
+  var BUILD_TIME = "2026-10-28T00:45:09.640Z";
 
   // src/ui/settings-modal.js
   var OTHER = "__other__";

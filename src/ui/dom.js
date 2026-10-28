@@ -107,6 +107,8 @@ export function initDOM() {
   els.settingsCloseBtn = document.getElementById("settings-close-btn");
   els.settingsCancelBtn = document.getElementById("settings-cancel-btn");
   els.settingsSaveBtn = document.getElementById("settings-save-btn");
+  els.settingsGithubLink = document.getElementById("settings-github-link");
+  els.settingsGithubBtn = document.getElementById("settings-github-btn");
   els.providerAccountList = document.getElementById("provider-account-list");
   els.providerEditPanel = document.getElementById("provider-edit-panel");
   els.providerEditTitle = document.getElementById("provider-edit-title");
