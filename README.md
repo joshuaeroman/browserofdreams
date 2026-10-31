@@ -1,112 +1,85 @@
-# Browser of Dreams 🌀
+# Browser of Dreams
 
-**A retro web simulator & temporal AI dream engine.** Pick any URL and any date in
-history — or the future — and an LLM authors an authentic, era-appropriate webpage
-on the fly, while an image model paints period banner ads and news photography.
+**A retro web simulator and temporal AI dream engine.** Pick any URL and any date from
+1969 to 2150, and a language model writes an era-appropriate webpage on the fly. An
+image model can add period banner ads, editorial photos, or text-mode art.
 
 ![Browser of Dreams demo](docs/screenshot.png)
 
-The image above is real output: `nycnews.com` on **September 11, 2001**, generated in
-"Grounded" mode — the New York mayoral primary morning, teal-metric weather boxes and all.
+The screenshot is real output: `nycnews.com` on September 11, 2001, generated in
+"Grounded" mode.
 
-## Play
+## Try it
 
-**Live demo:** host this repo on GitHub Pages (`main` branch, `/` root) and open the URL.
-**Or locally:** the repo ships a prebuilt `dist/`, so a plain static server is enough:
+Open the live demo at
+[https://joshuaeroman.github.io/browserofdreams/](https://joshuaeroman.github.io/browserofdreams/),
+or run it locally:
 
 ```bash
 git clone <your-fork-url>
-cd browserOfDreams
+cd browserofdreams
 npm install
-npm run build        # only needed after editing src/
-npm run serve        # http://localhost:8765
+npm run serve      # http://localhost:8765
 ```
 
-You'll need to BYOK (bring your own keys) — see [Providers](#providers) below. Keys are
-configured in-app via ⚙ **Settings**.
+`dist/` is prebuilt. Run `npm run build` only after changing `src/`.
 
-## What it does
+## Bring your own API keys
 
-- **Time-travel the web.** Enter any real or hypothetical URL plus any date
-  from 1969 to 2150. The era engine picks a theme (BBS, Mosaic, Netscape, Web 2.0,
-  modern, future) and the text model authors the page with period-accurate HTML/CSS/JS.
-- **Era-adaptive image generation.** Banner ads and editorial photos via a dedicated
-  image model, or text-model pixel art / SVG (Pixel ≤1999, SVG ≥2000 in auto mode).
-- **Cultural zeitgeist.** The model also suggests 10 memes/keywords for the chosen date,
-  which subtly flavor content.
-- **Timeline Reality Dial.** 0% = strict historical accuracy ("Grounded"); 100% = the
-  model may invent an Alternate History branch.
-- **Streaming, retro-styled.** Pages stream in live behind an authentic dial-up
-  transfer dialog; a Recent History cache lets you re-open past dreams instantly.
-- **Installable PWA.** Works offline as a standalone "browser" app thanks to a
-  service worker that caches only the app shell (API traffic is never cached).
+The app has no backend. It calls the model providers directly from your browser, so you
+need at least one provider key. Open **Settings > Providers**, paste a key, and choose
+the text and image providers in the bottom bar.
 
-## Providers
-
-Configure one or more under ⚙ **Settings** → *Providers*, then pick the text/image
-pair in the bottom bar before dreaming.
-
-| Provider | Works from GitHub Pages? | Notes |
+| Provider | Get a key | Notes |
 | --- | --- | --- |
-| **OpenRouter** | ✅ Out of the box | Largest model catalog; [request a key](https://openrouter.ai/keys) |
-| **Command Code** | ✅ Out of the box | Text-only (the Provider API has no image endpoint). Claude models default to `/provider/v1/messages` and everything else to `/provider/v1/chat/completions` (a model's fetched `supported_endpoints` overrides the default); [get a key](https://commandcode.ai/studio/). CORS preflight allows only `Content-Type` and `Authorization`, which is exactly what the adapter sends |
-| **Google AI Studio (GEMINI API)** | ✅ Out of the box | Express API keys |
-| **Google Cloud Vertex AI (Agent Platform)** | ✅ API key (Express) / gcloud access token | Access tokens are short-lived — re-paste after expiry |
-| **OpenCode (Zen / Go)** | ❌ **Disabled in code** | opencode.ai omits `Access-Control-Allow-Origin` on inference POST routes, so direct browser calls are blocked by CORS. The adapter lives on in `src/providers/opencode/`; re-enable via the `disabled` flags in `src/core/settings.js` and the registry entries in `src/providers/registry.js` |
+| OpenRouter | https://openrouter.ai/keys | Largest catalog; text and image models. |
+| Command Code | https://commandcode.ai/studio/ | Text only. Pair it with a separate image provider. |
+| Google AI Studio | https://aistudio.google.com/app/apikey | Gemini text and image models. |
+| Google Cloud Vertex AI | Google Cloud console | API key or short-lived access token; re-paste tokens when they expire. |
 
-## Storage & privacy — please read
+You can configure more than one provider and switch between them at any time.
 
-- **API keys are stored in your browser's `localStorage`** in plaintext. They are sent
-  **directly to the provider you configure** and nowhere else — this app has no server
-  of its own. Avoid using this demo on a shared computer; 🔑 rotate keys you've used here.
-- Dreamed pages, images, and meme lists are also cached in `localStorage`
-  (🧹 *Settings → Clear Cached Pages & Images* wipes everything).
-- Generated pages render inside a **sandboxed, same-origin iframe**. Treat everything a
-  dream serves you as fiction never to be trusted with real credentials — it is simulated
-  retro fiction, after all.
+### Key storage and privacy
 
-## Architecture
+- API keys are saved in your browser's `localStorage` in plaintext and sent only to the
+  provider you selected. There is no Browser of Dreams server.
+- Use a dedicated key, avoid shared computers, and rotate keys you have used here.
+- Generated pages, images, memes, and recent history are cached locally. Clear them with
+  **Settings > Clear Cached Pages & Images**.
+- Dream pages render inside a sandboxed iframe. Treat generated content as fiction and
+  never enter real credentials into a dreamed page.
 
-```
-index.html            App shell (retro chrome, modals, iframe viewport)
-manifest.webmanifest  PWA manifest
-sw.js                 Service worker (app-shell precache only)
-build.mjs             esbuild bundling → dist/
-src/
-  main.js             Boot & wiring 🧩
-  core/               Settings, state, era engine, cache, URLs, navigation
-  providers/          OpenRouter · Command Code · Gemini (AI Studio/Vertex) · OpenCode adapters
-  prompts/            Dream page / memes / text-art prompt builders
-  features/           Image generation, memes, text art, PWA
-  bridge/             Injected into each dream: link triage + resolution runtime
-  ui/                 DOM refs, toolbar, modals, status bar, home screen
-  data/               Featured portals, bookmarks, fallback memes
-  styles/             Era theming & retro chrome CSS
-tests/                node --test suites (76 tests)
-```
+## What you can do
+
+- **Travel the web.** Enter a URL and a date; the era engine picks a period theme and the
+  text model writes matching HTML, CSS, and JavaScript.
+- **Make period imagery.** Use a dedicated image model, or let the text model produce
+  pixel art or SVG.
+- **Set the reality dial.** Go from strict historical grounding to alternate-history
+  invention.
+- **Watch it stream.** Pages arrive through a dial-up transfer dialog, and Recent History
+  lets you reopen past dreams.
+- **Install it.** The PWA works offline for the app shell; API traffic is never cached.
+
+## Development
 
 ```bash
-npm test              # build + run full test suite
-npm run watch         # rebuild dist/ on change
-npm run icons         # regenerate PWA icon set (requires Python)
+npm test          # build and run the test suite
+npm run build     # rebuild dist/
+npm run watch     # rebuild on change
+npm run icons     # regenerate PWA icons (requires Python)
 ```
 
-## Release checklist (for maintainers)
-
-1. Edit `src/`, then `npm test` (regenerates `dist/`).
-2. ✈️ **Bump the app-shell version** (`CACHE_NAME` in `sw.js`, plus the matching `dist/app.js?v=` and `dist/app.css?v=` in `index.html` and `PRECACHE_ASSETS`) so installed clients pick up the new build.
-3. Verify the "Build" stamp in ⚙ Settings matches the release time.
-4. Commit `dist/` — GitHub Pages serves the app straight from the repo root.
-
-Had enough of dreams? `npm run app` launches a local build in a dedicated window.
+When changing the app shell, bump `CACHE_NAME` in `sw.js` and the matching `?v=` values
+for `dist/app.js` and `dist/app.css` in `index.html` and `PRECACHE_ASSETS`, then commit
+`dist/`.
 
 ## Disclaimer
 
-All pages, ads, and memes are **AI-generated historical fiction**. "Grounded" mode aims
-for authentic facts of the target date but can still get details wrong — the past is a
-foreign country, and this app prints postcards from memory.
+All pages, ads, and memes are AI-generated historical fiction. "Grounded" mode aims for
+accurate details for the chosen date, but it can still be wrong.
 
 ## License
 
-[MIT](LICENSE) © The Browser of Dreams Authors. Generated content belongs to whoever
-dreamed it — mind your provider's terms.
+[MIT](LICENSE) (c) The Browser of Dreams Authors. Generated content belongs to whoever
+dreamed it; mind your provider's terms.
