@@ -5997,7 +5997,7 @@ var BrowserOfDreamsBundle = (() => {
   }
 
   // build-stamp:build-stamp
-  var BUILD_TIME = "2026-10-31T20:31:49.497Z";
+  var BUILD_TIME = "2026-10-31T20:45:42.974Z";
 
   // src/ui/settings-modal.js
   var OTHER = "__other__";

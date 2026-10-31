@@ -82,7 +82,7 @@ src/
   ui/                 DOM refs, toolbar, modals, status bar, home screen
   data/               Featured portals, bookmarks, fallback memes
   styles/             Era theming & retro chrome CSS
-tests/                node --test suites (75 tests)
+tests/                node --test suites (76 tests)
 ```
 
 ```bash
@@ -94,8 +94,7 @@ npm run icons         # regenerate PWA icon set (requires Python)
 ## Release checklist (for maintainers)
 
 1. Edit `src/`, then `npm test` (regenerates `dist/`).
-2. ✈️ **Bump `CACHE_NAME` in `sw.js`** (e.g. `dreams-pwa-v2` → `v3`) so installed clients
-   pick up the new build.
+2. ✈️ **Bump the app-shell version** (`CACHE_NAME` in `sw.js`, plus the matching `dist/app.js?v=` and `dist/app.css?v=` in `index.html` and `PRECACHE_ASSETS`) so installed clients pick up the new build.
 3. Verify the "Build" stamp in ⚙ Settings matches the release time.
 4. Commit `dist/` — GitHub Pages serves the app straight from the repo root.
 
