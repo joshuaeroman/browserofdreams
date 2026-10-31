@@ -27,8 +27,9 @@ npm run serve      # http://localhost:8765
 ## Bring your own API keys
 
 The app has no backend. It calls the model providers directly from your browser, so you
-need at least one provider key. Open **Settings > Providers**, paste a key, and choose
-the text and image providers in the bottom bar.
+need at least one provider key, or a local OpenAI-compatible server. Open
+**Settings > Providers**, paste a key (or save a local endpoint), and choose the text and
+image providers in the bottom bar.
 
 | Provider | Get a key | Notes |
 | --- | --- | --- |
@@ -36,6 +37,7 @@ the text and image providers in the bottom bar.
 | Command Code | https://commandcode.ai/studio/ | Text only. Pair it with a separate image provider. |
 | Google AI Studio | https://aistudio.google.com/app/apikey | Gemini text and image models. |
 | Google Cloud Vertex AI | Google Cloud console | API key or short-lived access token; re-paste tokens when they expire. |
+| Local LLM (OpenAI-compatible) | No key needed | Ollama, LM Studio, llama.cpp, etc. Default endpoint `http://localhost:11434/v1`; the server must allow this page's origin (Ollama: set `OLLAMA_ORIGINS`). Text only. |
 
 You can configure more than one provider and switch between them at any time.
 
@@ -68,6 +70,7 @@ npm test          # build and run the test suite
 npm run build     # rebuild dist/
 npm run watch     # rebuild on change
 npm run icons     # regenerate PWA icons (requires Python)
+npm run mock:llm  # OpenAI-compatible mock server on 127.0.0.1:11434 for the Local LLM provider
 ```
 
 When changing the app shell, bump `CACHE_NAME` in `sw.js` and the matching `?v=` values

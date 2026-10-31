@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="alternate icon" type="image/png" href="icons/favicon-32.png" />
-  <link rel="stylesheet" href="dist/app.css?v=2" />
-  <script src="dist/app.js?v=2" defer></script>
+  <link rel="stylesheet" href="dist/app.css?v=3" />
+  <script src="dist/app.js?v=3" defer></script>
 </head>
 <body>
   <div id="browser-window" class="browser-window">
@@ -146,7 +146,7 @@
               <strong>Google AI Studio</strong>, or <strong>OpenRouter</strong> to start dreaming pages.
             </div>
             <button type="button" id="home-open-settings-btn" class="home-cta-btn">
-              ⚙ Configure Provider &amp; API Key
+              ⚙ Configure Provider
             </button>
           </div>
         </div>
@@ -316,6 +316,7 @@
             <div class="form-row" id="edit-endpoint-row" hidden>
               <label for="edit-endpoint">Endpoint:</label>
               <input type="text" id="edit-endpoint" class="settings-input" />
+              <div class="field-help" id="edit-endpoint-help" hidden></div>
             </div>
             <div class="form-row" id="edit-thinking-row" hidden>
               <label for="edit-thinking-budget">Thinking Token Budget:</label>
@@ -351,8 +352,8 @@
               <button type="button" id="provider-edit-fetch" class="small-btn">Fetch models</button>
               <button type="button" id="provider-edit-close" class="small-btn">Close</button>
             </div>
-            <div id="provider-edit-status" class="field-help"></div>
           </div>
+          <div id="provider-edit-status" class="field-help"></div>
         </div>
 
         <div class="settings-section">

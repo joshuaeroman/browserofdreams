@@ -3,6 +3,7 @@ import { getEraInfo } from "../core/era.js";
 import { isTextArtEngine } from "../providers/adapter.js";
 import { OpenRouterAdapter } from "../providers/openrouter/index.js";
 import { CommandCodeAdapter } from "../providers/commandcode/index.js";
+import { LocalAdapter } from "../providers/local/index.js";
 import { OpenCodeAdapter } from "../providers/opencode/index.js";
 import { GeminiAdapter } from "../providers/gemini/index.js";
 
@@ -226,6 +227,19 @@ export function generateTextModelArt(opts, callback) {
       styleMode: styleMode
     });
     callback(null, built.dataUrl, built);
+  }
+
+  if (provider === "local") {
+    return LocalAdapter.sendStreaming({
+      endpoint: o.endpoint,
+      apiKey: (o.localApiKey || o.apiKey || "").trim(),
+      model: model || "",
+      temperature: 0.65,
+      maxTokens: 8192,
+      messages: messages,
+      onChunk: o.onChunk || function() {},
+      onComplete: onDone
+    });
   }
 
   if (provider === "openrouter") {

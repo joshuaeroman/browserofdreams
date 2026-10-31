@@ -127,6 +127,7 @@ var BrowserOfDreamsBundle = (() => {
     els.editLocation = document.getElementById("edit-location");
     els.editEndpointRow = document.getElementById("edit-endpoint-row");
     els.editEndpoint = document.getElementById("edit-endpoint");
+    els.editEndpointHelp = document.getElementById("edit-endpoint-help");
     els.editThinkingRow = document.getElementById("edit-thinking-row");
     els.editThinkingBudget = document.getElementById("edit-thinking-budget");
     els.editReasoningRow = document.getElementById("edit-reasoning-row");
@@ -207,6 +208,13 @@ var BrowserOfDreamsBundle = (() => {
       name: "OpenRouter",
       raster: true,
       defaultEndpoint: "https://openrouter.ai/api/v1"
+    },
+    {
+      id: "local",
+      name: "Local LLM (OpenAI-compatible)",
+      raster: false,
+      keyless: true,
+      defaultEndpoint: "http://localhost:11434/v1"
     }
   ];
   var LEGACY_SECRET_FIELDS = [
@@ -252,6 +260,9 @@ var BrowserOfDreamsBundle = (() => {
         account.homepageReasoningEffort = "off";
       } else if (provider.id === "opencode-zen" || provider.id === "opencode-go") {
         account.endpoint = provider.defaultEndpoint;
+      } else if (provider.id === "local") {
+        account.endpoint = provider.defaultEndpoint;
+        account.enabled = false;
       }
       accounts[provider.id] = account;
     }
@@ -362,6 +373,7 @@ var BrowserOfDreamsBundle = (() => {
       opencodeZenChat: [],
       opencodeGoChat: [],
       commandcodeChat: [],
+      localChat: [],
       orChat: [],
       orImage: []
     }
@@ -3223,7 +3235,7 @@ var BrowserOfDreamsBundle = (() => {
     xhr.send();
   }
 
-  // src/providers/commandcode/sse.js
+  // src/providers/sse.js
   function dataPayload(line) {
     if (line.indexOf("data:") !== 0) return null;
     var rest = line.substring(5);
@@ -3690,6 +3702,306 @@ var BrowserOfDreamsBundle = (() => {
     }
   };
 
+  // src/providers/local/endpoint.js
+  var DEFAULT_LOCAL_ENDPOINT = "http://localhost:11434/v1";
+  var ENDPOINT_SUFFIX = /\/+(?:chat\/completions|completions|models)\/?$/i;
+  function normalizeLocalEndpoint(raw) {
+    var s = String(raw == null ? "" : raw).trim().split("?")[0].split("#")[0];
+    if (!s) return DEFAULT_LOCAL_ENDPOINT;
+    s = s.replace(/\/+$/, "").replace(ENDPOINT_SUFFIX, "").replace(/\/+$/, "");
+    if (!/^https?:\/\//i.test(s)) s = "http://" + s;
+    var m = s.match(/^([a-z]+:\/\/[^/]+)(\/.*)?$/i);
+    if (!m) return DEFAULT_LOCAL_ENDPOINT;
+    var host = m[1].replace(/^[a-z]+:\/\//i, "");
+    if (!host || /:$/.test(host)) return DEFAULT_LOCAL_ENDPOINT;
+    var path = m[2] || "";
+    if (!path || path === "/") path = "/v1";
+    var candidate = m[1] + path;
+    try {
+      new URL(candidate);
+    } catch (e) {
+      return DEFAULT_LOCAL_ENDPOINT;
+    }
+    return candidate;
+  }
+  function localUrl(endpoint, path) {
+    return normalizeLocalEndpoint(endpoint) + path;
+  }
+  function describeLocalError(xhr, label) {
+    if (xhr.status === 0) {
+      return label + ": cannot reach the local server at " + String(xhr.__url || "the configured endpoint") + ". Is it running? Some servers also reject cross-origin requests \u2014 allow this page's origin (Ollama: set OLLAMA_ORIGINS).";
+    }
+    var msg = label + " (HTTP " + xhr.status + ")";
+    try {
+      var body = JSON.parse(xhr.responseText);
+      var err = body && body.error;
+      if (err && typeof err === "object" && err.message) msg += ": " + err.message;
+      else if (typeof err === "string") msg += ": " + err;
+    } catch (e) {
+      if (xhr.responseText) msg += ": " + String(xhr.responseText).substring(0, 200);
+    }
+    return msg;
+  }
+
+  // src/providers/local/models.js
+  var STATIC_LOCAL_MODELS = [];
+  function normalizeLocalModelId(raw) {
+    return String(raw == null ? "" : raw).trim().replace(/\/+$/, "");
+  }
+  function fetchLocalModels(endpoint, apiKey, callback) {
+    var url = localUrl(endpoint, "/models");
+    var key = String(apiKey || "").trim();
+    var xhr = new XMLHttpRequest();
+    var settled = false;
+    function done(err, models) {
+      if (settled) return;
+      settled = true;
+      callback(err, models);
+    }
+    xhr.open("GET", url);
+    xhr.timeout = 2e4;
+    xhr.__url = url;
+    if (key) xhr.setRequestHeader("Authorization", "Bearer " + key);
+    xhr.ontimeout = function() {
+      done("Local model fetch timed out", null);
+    };
+    xhr.onerror = function() {
+      done(describeLocalError({ status: 0, __url: url }, "Local model fetch"), null);
+    };
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4) return;
+      if (xhr.status === 0) return;
+      if (xhr.status !== 200) {
+        done(describeLocalError(xhr, "Local model fetch"), null);
+        return;
+      }
+      var body;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch (e) {
+        done("Failed to parse the local model list", null);
+        return;
+      }
+      var data = body && body.data;
+      if (!Array.isArray(data)) {
+        done("Failed to parse the local model list", null);
+        return;
+      }
+      var seen = {};
+      var models = [];
+      for (var i = 0; i < data.length; i++) {
+        var id = data[i] && data[i].id;
+        if (typeof id !== "string" || !id || seen[id]) continue;
+        seen[id] = true;
+        models.push(id);
+      }
+      models.sort();
+      done(null, models);
+    };
+    xhr.send();
+    return {
+      xhr,
+      abort: function() {
+        settled = true;
+        xhr.abort();
+      }
+    };
+  }
+
+  // src/providers/local/chat.js
+  var MISSING_MODEL = "No local model selected. Open Settings \u2192 Providers \u2192 Local LLM, fetch models, and pick one.";
+  function sendLocalStreaming(opts) {
+    var url = localUrl(opts.endpoint, "/chat/completions");
+    var apiKey = String(opts.apiKey || "").trim();
+    var model = normalizeLocalModelId(opts.model);
+    var temperature = opts.temperature !== void 0 ? opts.temperature : 0.7;
+    var onChunk = opts.onChunk || function() {
+    };
+    var onComplete = opts.onComplete || function() {
+    };
+    if (!model) {
+      onComplete("", MISSING_MODEL);
+      return { abort: function() {
+      } };
+    }
+    var xhr = new XMLHttpRequest();
+    var lastIndex = 0;
+    var accumulatedText = "";
+    var completeCalled = false;
+    function sendRequest() {
+      xhr.open("POST", url);
+      xhr.timeout = 6e5;
+      xhr.__url = url;
+      xhr.setRequestHeader("Content-Type", "application/json");
+      if (apiKey) xhr.setRequestHeader("Authorization", "Bearer " + apiKey);
+      var payload = {
+        model,
+        messages: opts.messages || [],
+        temperature,
+        stream: true
+      };
+      if (typeof opts.maxTokens === "number" && isFinite(opts.maxTokens)) {
+        payload.max_tokens = opts.maxTokens;
+      }
+      xhr.send(JSON.stringify(payload));
+    }
+    function processSSE(final) {
+      var res = readDataLines(xhr.responseText, lastIndex, final);
+      lastIndex = res.index;
+      for (var i = 0; i < res.payloads.length; i++) {
+        var dataStr = res.payloads[i];
+        if (dataStr === "[DONE]") continue;
+        try {
+          var parsed = JSON.parse(dataStr);
+          if (parsed.error && parsed.error.message) {
+            finish(parsed.error.message);
+            return;
+          }
+          var choice = parsed.choices && parsed.choices[0];
+          if (!choice) continue;
+          var delta = choice.delta;
+          var content = delta && delta.content;
+          if (typeof content === "string" && content.length > 0) {
+            accumulatedText += content;
+            onChunk(content, accumulatedText);
+          }
+        } catch (e) {
+        }
+      }
+    }
+    function finish(err) {
+      if (completeCalled) return;
+      completeCalled = true;
+      if (err) {
+        onComplete(accumulatedText, err);
+        return;
+      }
+      if (accumulatedText.length > 0) {
+        onComplete(accumulatedText, null);
+        return;
+      }
+      var body = String(xhr.responseText || "");
+      if (/^\s*data:/m.test(body)) {
+        onComplete("", "Empty response from the local model");
+        return;
+      }
+      try {
+        var obj = JSON.parse(xhr.responseText);
+        var content = obj.choices && obj.choices[0] && obj.choices[0].message && obj.choices[0].message.content;
+        if (typeof content === "string" && content.length > 0) {
+          onComplete(content, null);
+        } else {
+          onComplete("", "Empty response from the local model");
+        }
+      } catch (e) {
+        onComplete("", "Failed to parse the local response");
+      }
+    }
+    xhr.ontimeout = function() {
+      finish("Local request timed out");
+    };
+    xhr.onerror = function() {
+      finish(describeLocalError({ status: 0, __url: url }, "Local chat"));
+    };
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === 3) {
+        processSSE(false);
+      } else if (xhr.readyState === 4) {
+        if (xhr.status === 0) return;
+        if (xhr.status === 200) {
+          processSSE(true);
+          finish(null);
+        } else {
+          finish(describeLocalError(xhr, "Local chat"));
+        }
+      }
+    };
+    sendRequest();
+    return {
+      xhr,
+      abort: function() {
+        completeCalled = true;
+        xhr.abort();
+      }
+    };
+  }
+  function completeLocalOnce(opts, callback) {
+    var url = localUrl(opts.endpoint, "/chat/completions");
+    var apiKey = String(opts.apiKey || "").trim();
+    var model = normalizeLocalModelId(opts.model);
+    var temperature = opts.temperature !== void 0 ? opts.temperature : 0.5;
+    var completed = false;
+    function done(err, text) {
+      if (completed) return;
+      completed = true;
+      callback(err, text);
+    }
+    if (!model) {
+      done(MISSING_MODEL, null);
+      return { abort: function() {
+      } };
+    }
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.timeout = opts.timeout || 2e4;
+    xhr.__url = url;
+    xhr.setRequestHeader("Content-Type", "application/json");
+    if (apiKey) xhr.setRequestHeader("Authorization", "Bearer " + apiKey);
+    var payload = {
+      model,
+      messages: opts.messages || [],
+      stream: false,
+      max_tokens: opts.maxTokens !== void 0 ? opts.maxTokens : 180,
+      temperature
+    };
+    xhr.ontimeout = function() {
+      done("Local request timed out", null);
+    };
+    xhr.onerror = function() {
+      done(describeLocalError({ status: 0, __url: url }, "Local chat"), null);
+    };
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4) return;
+      if (xhr.status === 0) return;
+      if (xhr.status !== 200) {
+        done(describeLocalError(xhr, "Local chat"), null);
+        return;
+      }
+      try {
+        var obj = JSON.parse(xhr.responseText);
+        var content = obj.choices && obj.choices[0] && obj.choices[0].message && obj.choices[0].message.content;
+        done(null, typeof content === "string" ? content : "");
+      } catch (e) {
+        done("Failed to parse the local response", null);
+      }
+    };
+    xhr.send(JSON.stringify(payload));
+    return {
+      xhr,
+      abort: function() {
+        completed = true;
+        xhr.abort();
+      }
+    };
+  }
+
+  // src/providers/local/index.js
+  var LocalAdapter = {
+    id: "local",
+    name: "Local LLM (OpenAI-compatible)",
+    DEFAULT_LOCAL_ENDPOINT,
+    STATIC_LOCAL_MODELS,
+    normalizeEndpoint: normalizeLocalEndpoint,
+    normalizeModelId: normalizeLocalModelId,
+    fetchModels: fetchLocalModels,
+    sendStreaming: sendLocalStreaming,
+    streamChat: sendLocalStreaming,
+    completeOnce: completeLocalOnce,
+    hasCredentials: function(config) {
+      return !!(config && config.localEnabled && String(config.endpoint || "").trim().length > 0);
+    }
+  };
+
   // src/providers/adapter.js
   function isOpenCodeProvider(providerId) {
     return providerId === "opencode-zen" || providerId === "opencode-go";
@@ -3703,7 +4015,8 @@ var BrowserOfDreamsBundle = (() => {
     "agentplatform": AgentPlatformAdapter,
     "gemini": GeminiAdapter,
     "openrouter": OpenRouterAdapter,
-    "commandcode": CommandCodeAdapter
+    "commandcode": CommandCodeAdapter,
+    "local": LocalAdapter
     // "opencode-zen": OpenCodeZenAdapter,
     // "opencode-go": OpenCodeGoAdapter
   };
@@ -3722,6 +4035,8 @@ var BrowserOfDreamsBundle = (() => {
         return "OpenRouter";
       case "commandcode":
         return "Command Code";
+      case "local":
+        return "Local LLM (OpenAI-compatible)";
       case "opencode-zen":
         return "OpenCode Zen";
       case "opencode-go":
@@ -3740,6 +4055,9 @@ var BrowserOfDreamsBundle = (() => {
       openrouterApiKey: conf.apiKey,
       commandcodeApiKey: conf.apiKey,
       opencodeApiKey: conf.apiKey,
+      localApiKey: conf.apiKey,
+      endpoint: conf.endpoint,
+      localEnabled: !!conf.localEnabled,
       googleProjectId: conf.geminiProjectId,
       vertexAuthType: conf.vertexAuthType
     };
@@ -3781,7 +4099,8 @@ var BrowserOfDreamsBundle = (() => {
       geminiAuthMethod: p === "agentplatform" ? "agentplatform" : p,
       geminiLocation: "global",
       geminiProjectId: "",
-      vertexAuthType: "apikey"
+      vertexAuthType: "apikey",
+      localEnabled: false
     };
     if (p === "commandcode") {
       conf.apiKey = useAccount ? account && account.apiKey || "" : s.commandcodeApiKey || "";
@@ -3804,6 +4123,10 @@ var BrowserOfDreamsBundle = (() => {
       conf.apiKey = useAccount ? account && account.apiKey || "" : s.googleApiKey || "";
       conf.endpoint = "https://generativelanguage.googleapis.com";
       conf.geminiAuthMethod = "gemini";
+    } else if (p === "local") {
+      conf.apiKey = useAccount ? account && account.apiKey || "" : "";
+      conf.endpoint = account && account.endpoint || "http://localhost:11434/v1";
+      conf.localEnabled = !!(account && account.enabled);
     } else {
       if (useAccount && account) {
         conf.apiKey = account.apiKey || "";
@@ -5040,6 +5363,19 @@ var BrowserOfDreamsBundle = (() => {
       });
       callback(null, built.dataUrl, built);
     }
+    if (provider === "local") {
+      return LocalAdapter.sendStreaming({
+        endpoint: o.endpoint,
+        apiKey: (o.localApiKey || o.apiKey || "").trim(),
+        model: model || "",
+        temperature: 0.65,
+        maxTokens: 8192,
+        messages,
+        onChunk: o.onChunk || function() {
+        },
+        onComplete: onDone
+      });
+    }
     if (provider === "openrouter") {
       return OpenRouterAdapter.sendStreaming({
         apiKey: (o.openrouterApiKey || o.apiKey || "").trim(),
@@ -5114,6 +5450,9 @@ var BrowserOfDreamsBundle = (() => {
     var s = settings || state.settings;
     if (imgProvider === "commandcode") {
       return s.pageModel || "deepseek/deepseek-v4.1-flash";
+    }
+    if (imgProvider === "local") {
+      return s.pageModel || "";
     }
     var rawModel = String(s.imageModel || "").trim();
     var isDedicatedImageId = /(-image|^imagen|flux|stable-diffusion|recraft|seedream)/i.test(rawModel);
@@ -5556,7 +5895,10 @@ var BrowserOfDreamsBundle = (() => {
   function updateProviderStatusUI() {
     var settings = state.settings;
     var configured = hasValidCredentials(settings, settings.pageProvider);
+    var hasModel = !!String(settings.pageModel || "").trim();
+    var ready = configured && hasModel;
     var pName = getProviderDisplayName(settings.pageProvider);
+    var keyless = !!(providerById(settings.pageProvider) && providerById(settings.pageProvider).keyless);
     var corsNote = isOpenCodeProvider(settings.pageProvider) ? ' <span class="cors-inline-badge" title="opencode.ai requires a CORS browser extension for direct browser POST requests">\u26A0\uFE0F Needs CORS Extension</span>' : "";
     var imgSummary = "";
     if (settings.imageMode !== "off") {
@@ -5574,13 +5916,13 @@ var BrowserOfDreamsBundle = (() => {
       }
     }
     if (els.apiStatusDot) {
-      els.apiStatusDot.classList.toggle("ready", configured);
+      els.apiStatusDot.classList.toggle("ready", ready);
     }
     if (els.providerSummaryText) {
-      els.providerSummaryText.textContent = configured ? pName + ": " + settings.pageModel : pName + " (Click to set API Key)";
+      els.providerSummaryText.textContent = ready ? pName + ": " + settings.pageModel : configured ? pName + " (Click to select a model)" : pName + (keyless ? " (Click to set endpoint)" : " (Click to set API Key)");
     }
     if (els.homeApiWarning) {
-      if (configured) {
+      if (ready) {
         els.homeApiWarning.classList.add("configured");
         var bannerText = els.homeApiWarning.querySelector(".home-api-banner-text");
         if (bannerText) {
@@ -5590,7 +5932,7 @@ var BrowserOfDreamsBundle = (() => {
         els.homeApiWarning.classList.remove("configured");
         var warnText = els.homeApiWarning.querySelector(".home-api-banner-text");
         if (warnText) {
-          warnText.innerHTML = "<strong>Provider API Key Required:</strong> To explore the web across time, configure your <strong>" + pName + "</strong> API key in Settings.";
+          warnText.innerHTML = configured ? "<strong>Select a Model:</strong> Choose a model for <strong>" + pName + "</strong> in Settings." : (keyless ? "<strong>Provider Setup Required:</strong> To explore the web across time, configure your " : "<strong>Provider API Key Required:</strong> To explore the web across time, configure your ") + "<strong>" + pName + "</strong> " + (keyless ? "endpoint" : "API key") + " in Settings.";
         }
       }
     }
@@ -5997,7 +6339,7 @@ var BrowserOfDreamsBundle = (() => {
   }
 
   // build-stamp:build-stamp
-  var BUILD_TIME = "2026-10-31T20:45:42.974Z";
+  var BUILD_TIME = "2026-10-31T21:39:10.654Z";
 
   // src/ui/settings-modal.js
   var OTHER = "__other__";
@@ -6020,6 +6362,11 @@ var BrowserOfDreamsBundle = (() => {
     var tail = value.length <= 4 ? value : value.slice(-4);
     return "\u2022\u2022\u2022\u2022" + tail;
   }
+  function isAccountConfigured(provider, account) {
+    if (!provider || !account) return false;
+    if (provider.keyless) return !!account.enabled;
+    return !!String(account.apiKey || "").trim();
+  }
   function setEditStatus(text) {
     if (els.providerEditStatus) els.providerEditStatus.textContent = text || "";
   }
@@ -6037,6 +6384,9 @@ var BrowserOfDreamsBundle = (() => {
     var settings = state.settings || {};
     var cm = settings.cachedModels || {};
     var p = provider === "aistudio" ? "gemini" : provider;
+    if (p === "local") {
+      return cm.localChat && cm.localChat.length > 0 ? cm.localChat.slice() : [];
+    }
     if (p === "openrouter") {
       if (isImage) {
         var orImgs = cm.orImage && cm.orImage.length > 0 ? cm.orImage.slice() : STATIC_OR_IMAGE_MODELS.slice();
@@ -6101,7 +6451,7 @@ var BrowserOfDreamsBundle = (() => {
     if (!customEl) return;
     var show = !!(selectEl && selectEl.value === OTHER);
     customEl.hidden = !show;
-    if (show && current) customEl.value = current;
+    if (show) customEl.value = current || "";
   }
   function readPickerModel(selectEl, customEl, providerId) {
     if (!selectEl) return "";
@@ -6111,6 +6461,9 @@ var BrowserOfDreamsBundle = (() => {
     }
     if (providerId === "commandcode") {
       value = CommandCodeAdapter.normalizeModelId(value, getAvailableModelList("commandcode", false));
+    }
+    if (providerId === "local") {
+      value = LocalAdapter.normalizeModelId(value);
     }
     return value;
   }
@@ -6154,6 +6507,9 @@ var BrowserOfDreamsBundle = (() => {
       var resolvedText = readPickerModel(els.textModelSelect, els.textModelCustom, textProvider) || textModels[0] || "";
       if (resolvedText && resolvedText !== settings.pageModel) {
         settings.pageModel = resolvedText;
+        changed = true;
+      } else if (!resolvedText && providerChanged && settings.pageModel) {
+        settings.pageModel = "";
         changed = true;
       }
     }
@@ -6218,6 +6574,7 @@ var BrowserOfDreamsBundle = (() => {
       var provider = PROVIDER_CATALOG[i];
       if (provider.disabled) continue;
       var account = draftAccounts[provider.id];
+      var configured = isAccountConfigured(provider, account);
       var row = document.createElement("li");
       row.className = "provider-account-row";
       var name = document.createElement("span");
@@ -6225,11 +6582,11 @@ var BrowserOfDreamsBundle = (() => {
       name.textContent = provider.name;
       var key = document.createElement("span");
       key.className = "provider-account-key";
-      key.textContent = maskKey(account && account.apiKey);
+      key.textContent = provider.keyless ? configured ? account.endpoint || provider.defaultEndpoint : "Not configured" : maskKey(account && account.apiKey);
       var actions = document.createElement("span");
       actions.className = "provider-account-actions";
-      addButton(account && account.apiKey ? "Edit" : "Save key", "edit");
-      if (account && account.apiKey) {
+      addButton(configured ? "Edit" : provider.keyless ? "Save endpoint" : "Save key", "edit");
+      if (configured) {
         addButton("Remove", "remove");
         addButton("Fetch models", "fetch");
       }
@@ -6250,18 +6607,29 @@ var BrowserOfDreamsBundle = (() => {
     setEditStatus("");
     var isAgent = providerId === "agentplatform";
     var isCommandCode = providerId === "commandcode";
+    var keyless = !!provider.keyless;
     var openCode = isOpenCodeProvider(providerId);
     if (els.editAuthRow) els.editAuthRow.hidden = !isAgent;
     if (els.editProjectRow) els.editProjectRow.hidden = !isAgent;
     if (els.editThinkingRow) els.editThinkingRow.hidden = !isAgent;
     if (els.editReasoningRow) els.editReasoningRow.hidden = !isCommandCode;
     if (els.editHomepageReasoningRow) els.editHomepageReasoningRow.hidden = !isCommandCode;
-    if (els.editEndpointRow) els.editEndpointRow.hidden = !(isAgent || openCode);
+    if (els.editEndpointRow) els.editEndpointRow.hidden = !(isAgent || openCode || keyless);
     if (els.providerCorsNotice) els.providerCorsNotice.hidden = !openCode;
-    if (els.editKeyLabel) els.editKeyLabel.textContent = isAgent ? "API Key or Access Token:" : "API Key:";
+    if (els.editKeyLabel) {
+      els.editKeyLabel.textContent = keyless ? "API Key (optional):" : isAgent ? "API Key or Access Token:" : "API Key:";
+    }
     if (els.editApiKey) {
       els.editApiKey.value = account.apiKey || "";
       els.editApiKey.type = "password";
+      els.editApiKey.placeholder = keyless ? "Optional \u2014 leave empty unless your server requires a key" : "Paste API key";
+    }
+    if (els.providerEditSave) els.providerEditSave.textContent = keyless ? "Save endpoint" : "Save key";
+    if (els.editEndpointHelp) {
+      els.editEndpointHelp.hidden = !keyless;
+      if (keyless) {
+        els.editEndpointHelp.textContent = "OpenAI-compatible base URL. Examples: http://localhost:11434/v1 (Ollama), http://localhost:1234/v1 (LM Studio), http://localhost:8080/v1 (llama.cpp). Trailing /v1 is added when omitted. The server must allow this page's origin \u2014 for Ollama set OLLAMA_ORIGINS.";
+      }
     }
     if (isAgent) {
       if (els.editAuthType) els.editAuthType.value = account.vertexAuthType || "apikey";
@@ -6271,7 +6639,7 @@ var BrowserOfDreamsBundle = (() => {
       if (els.editLocation) els.editLocation.value = account.location || "global";
       if (els.editEndpoint) els.editEndpoint.value = account.endpoint || provider.defaultEndpoint;
       if (els.editThinkingBudget) els.editThinkingBudget.value = account.thinkingBudget || 0;
-    } else if (openCode && els.editEndpoint) {
+    } else if ((openCode || keyless) && els.editEndpoint) {
       els.editEndpoint.value = account.endpoint || provider.defaultEndpoint;
     }
     if (isCommandCode && els.editReasoningEffort) {
@@ -6295,6 +6663,9 @@ var BrowserOfDreamsBundle = (() => {
       account.thinkingBudget = els.editThinkingBudget ? parseInt(els.editThinkingBudget.value, 10) || 0 : account.thinkingBudget;
     } else if (isOpenCodeProvider(id) && els.editEndpoint) {
       account.endpoint = els.editEndpoint.value.trim() || provider.defaultEndpoint;
+    } else if (provider && provider.keyless) {
+      if (els.editEndpoint) account.endpoint = LocalAdapter.normalizeEndpoint(els.editEndpoint.value);
+      account.enabled = true;
     }
     if (id === "commandcode" && els.editReasoningEffort) {
       account.reasoningEffort = els.editReasoningEffort.value || "off";
@@ -6322,10 +6693,23 @@ var BrowserOfDreamsBundle = (() => {
   }
   function removeProviderKey(providerId) {
     if (!draftAccounts || !draftAccounts[providerId]) return;
-    draftAccounts[providerId].apiKey = "";
-    if (editingProviderId === providerId && els.editApiKey) els.editApiKey.value = "";
+    var provider = providerById(providerId);
+    if (provider && provider.keyless) {
+      draftAccounts[providerId].enabled = false;
+      draftAccounts[providerId].endpoint = provider.defaultEndpoint;
+    } else {
+      draftAccounts[providerId].apiKey = "";
+    }
+    if (editingProviderId === providerId) {
+      editingProviderId = "";
+      if (els.providerEditPanel) els.providerEditPanel.hidden = true;
+    }
     renderProviderList();
-    setEditStatus(providerById(providerId).name + " key removed. Choose Save Settings to keep this.");
+    if (provider && provider.keyless) {
+      setEditStatus(provider.name + " endpoint disabled. Choose Save Settings to keep this.");
+    } else {
+      setEditStatus(providerById(providerId).name + " key removed. Choose Save Settings to keep this.");
+    }
   }
   function cacheAndRefresh(note) {
     state.settings.cachedModels = state.settings.cachedModels || {};
@@ -6338,13 +6722,30 @@ var BrowserOfDreamsBundle = (() => {
     readEditorIntoDraft();
     var id = editingProviderId;
     var account = draftAccounts[id];
+    var provider = providerById(id);
     var key = String(account.apiKey || "").trim();
-    if (!key) {
+    if (!key && !(provider && provider.keyless)) {
       setEditStatus("Paste a key before fetching models.");
       return;
     }
-    var provider = providerById(id);
+    if (provider && provider.keyless && !String(account.endpoint || "").trim()) {
+      setEditStatus("Enter an endpoint URL before fetching models.");
+      return;
+    }
     setEditStatus("Fetching " + provider.name + " models\u2026");
+    if (id === "local") {
+      LocalAdapter.fetchModels(account.endpoint, key, function(err, models) {
+        if (err || !models) {
+          setEditStatus("\u26A0\uFE0F " + (err || "Failed to fetch models"));
+          return;
+        }
+        state.settings.cachedModels = state.settings.cachedModels || {};
+        var cached = models.slice(0, 200);
+        state.settings.cachedModels.localChat = cached;
+        cacheAndRefresh("\u2713 Loaded " + cached.length + " local model(s).");
+      });
+      return;
+    }
     if (id === "commandcode") {
       var ccEndpoint = account.endpoint || provider.defaultEndpoint;
       CommandCodeAdapter.fetchModels(ccEndpoint, key, function(err, models) {
@@ -6425,6 +6826,7 @@ var BrowserOfDreamsBundle = (() => {
     draftAccounts = cloneDraft(settings.accounts);
     editingProviderId = "";
     if (els.providerEditPanel) els.providerEditPanel.hidden = true;
+    setEditStatus("");
     renderProviderList();
     if (els.temperatureSlider) els.temperatureSlider.value = settings.temperature;
     if (els.tempValLabel) els.tempValLabel.textContent = settings.temperature;
@@ -6538,6 +6940,12 @@ var BrowserOfDreamsBundle = (() => {
       els.providerEditSave.addEventListener("click", function() {
         commitEditor(true);
         var provider = providerById(editingProviderId);
+        if (provider && provider.keyless) {
+          setEditStatus(provider.name + " endpoint saved. Choose Save Settings to keep it.");
+          var cachedLocal = state.settings.cachedModels && state.settings.cachedModels.localChat;
+          if (!cachedLocal || cachedLocal.length === 0) fetchEditingProvider();
+          return;
+        }
         setEditStatus("Key saved for " + (provider ? provider.name : "provider") + ". Choose Save Settings to keep it.");
       });
     }
@@ -6647,7 +7055,7 @@ var BrowserOfDreamsBundle = (() => {
   function renderEraErrorPage(normalizedUrl, dateStr, errorMessage) {
     var era = getEraInfo(dateStr);
     var escapedErr = String(errorMessage || "Unknown error").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    var errorHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cannot find server</title><style>body{font-family:Verdana,Tahoma,sans-serif;background:#ffffff;color:#000000;padding:32px;max-width:680px;margin:0 auto;}h1{font-size:18px;color:#990000;border-bottom:1px solid #cccccc;padding-bottom:8px;}.box{background:#f7f7f2;border:1px solid #cccccc;padding:14px;font-family:monospace;font-size:12px;margin:16px 0;white-space:pre-wrap;}p,li{font-size:12px;line-height:1.5;}</style></head><body><h1>\u26A0\uFE0F The Dream Page Cannot Be Displayed</h1><p>The server at <strong>' + normalizedUrl + "</strong> on <strong>" + era.formattedLong + '</strong> could not be reached.</p><div class="box">' + escapedErr + "</div><p>Please try the following:</p><ul><li>Click the <strong>\u2699 Settings</strong> button in the browser toolbar to verify your API key and selected model.</li><li>Click <strong>Reload</strong> to try dreaming the page again.</li></ul></body></html>";
+    var errorHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cannot find server</title><style>body{font-family:Verdana,Tahoma,sans-serif;background:#ffffff;color:#000000;padding:32px;max-width:680px;margin:0 auto;}h1{font-size:18px;color:#990000;border-bottom:1px solid #cccccc;padding-bottom:8px;}.box{background:#f7f7f2;border:1px solid #cccccc;padding:14px;font-family:monospace;font-size:12px;margin:16px 0;white-space:pre-wrap;}p,li{font-size:12px;line-height:1.5;}</style></head><body><h1>\u26A0\uFE0F The Dream Page Cannot Be Displayed</h1><p>The server at <strong>' + normalizedUrl + "</strong> on <strong>" + era.formattedLong + '</strong> could not be reached.</p><div class="box">' + escapedErr + "</div><p>Please try the following:</p><ul><li>Click the <strong>\u2699 Settings</strong> button in the browser toolbar to verify your provider settings and selected model.</li><li>Click <strong>Reload</strong> to try dreaming the page again.</li></ul></body></html>";
     mountHtmlInViewport(errorHtml, normalizedUrl, dateStr, false);
     setStatusText("Error: " + errorMessage);
   }
@@ -6706,7 +7114,8 @@ var BrowserOfDreamsBundle = (() => {
     }
     if (!hasValidCredentials(state.settings, state.settings.pageProvider)) {
       openSettingsModal();
-      setStatusText("Please configure your API key in Settings to dream webpages.");
+      var pageProviderInfo = providerById(state.settings.pageProvider);
+      setStatusText(pageProviderInfo && pageProviderInfo.keyless ? "Please configure your local endpoint in Settings to dream webpages." : "Please configure your API key in Settings to dream webpages.");
       return;
     }
     var navCtx = opts.navContext ? Object.assign({}, opts.navContext) : null;
@@ -7581,6 +7990,7 @@ var BrowserOfDreamsBundle = (() => {
     OpenCodeRoute,
     OpenCodeAdapter,
     CommandCodeAdapter,
+    LocalAdapter,
     TextArtGenerator,
     DayMemesEngine,
     SUPPORTED_ASPECT_RATIOS,
@@ -7633,6 +8043,7 @@ var BrowserOfDreamsBundle = (() => {
     window.OpenCodeRoute = OpenCodeRoute;
     window.OpenCodeAdapter = OpenCodeAdapter;
     window.CommandCodeAdapter = CommandCodeAdapter;
+    window.LocalAdapter = LocalAdapter;
     window.TextArtGenerator = TextArtGenerator;
     window.DayMemesEngine = DayMemesEngine;
     if (typeof document !== "undefined" && typeof document.getElementById === "function") {
@@ -7651,6 +8062,7 @@ var BrowserOfDreamsBundle = (() => {
     globalThis.OpenCodeRoute = OpenCodeRoute;
     globalThis.OpenCodeAdapter = OpenCodeAdapter;
     globalThis.CommandCodeAdapter = CommandCodeAdapter;
+    globalThis.LocalAdapter = LocalAdapter;
     globalThis.TextArtGenerator = TextArtGenerator;
     globalThis.DayMemesEngine = DayMemesEngine;
   }

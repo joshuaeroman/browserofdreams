@@ -17,6 +17,12 @@ export function resolveActiveTextArtModel(settings, imgProvider) {
   if (imgProvider === "commandcode") {
     return s.pageModel || "deepseek/deepseek-v4.1-flash";
   }
+  // A local server only knows the model the user selected; never send it a
+  // foreign raster id or a hosted default. An empty id surfaces the
+  // "No local model selected" error from the adapter.
+  if (imgProvider === "local") {
+    return s.pageModel || "";
+  }
   var rawModel = String(s.imageModel || "").trim();
   var isDedicatedImageId = /(-image|^imagen|flux|stable-diffusion|recraft|seedream)/i.test(rawModel);
   if (!rawModel || rawModel === "same-as-page" || isDedicatedImageId) {

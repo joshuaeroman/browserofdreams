@@ -2,7 +2,7 @@ import { els } from "./dom.js";
 import { state } from "../core/state.js";
 import { hasValidCredentials, getProviderDisplayName, getEffectiveImageProvider } from "../providers/registry.js";
 import { isOpenCodeProvider } from "../providers/adapter.js";
-import { isRasterProvider } from "../core/settings.js";
+import { isRasterProvider, providerById } from "../core/settings.js";
 import { resolveActiveTextArtModel } from "../features/images.js";
 
 export function setStatusText(text) {
@@ -45,7 +45,12 @@ export function updateMemeStatusUI(memes, dateStr) {
 export function updateProviderStatusUI() {
   var settings = state.settings;
   var configured = hasValidCredentials(settings, settings.pageProvider);
+  var hasModel = !!String(settings.pageModel || "").trim();
+  // A configured provider with no model cannot dream (Local LLM before a
+  // model is picked); do not advertise readiness for it.
+  var ready = configured && hasModel;
   var pName = getProviderDisplayName(settings.pageProvider);
+  var keyless = !!(providerById(settings.pageProvider) && providerById(settings.pageProvider).keyless);
   var corsNote = isOpenCodeProvider(settings.pageProvider)
     ? " <span class=\"cors-inline-badge\" title=\"opencode.ai requires a CORS browser extension for direct browser POST requests\">⚠️ Needs CORS Extension</span>"
     : "";
@@ -67,15 +72,17 @@ export function updateProviderStatusUI() {
   }
 
   if (els.apiStatusDot) {
-    els.apiStatusDot.classList.toggle("ready", configured);
+    els.apiStatusDot.classList.toggle("ready", ready);
   }
   if (els.providerSummaryText) {
-    els.providerSummaryText.textContent = configured
+    els.providerSummaryText.textContent = ready
       ? pName + ": " + settings.pageModel
-      : pName + " (Click to set API Key)";
+      : (configured
+        ? pName + " (Click to select a model)"
+        : pName + (keyless ? " (Click to set endpoint)" : " (Click to set API Key)"));
   }
   if (els.homeApiWarning) {
-    if (configured) {
+    if (ready) {
       els.homeApiWarning.classList.add("configured");
       var bannerText = els.homeApiWarning.querySelector(".home-api-banner-text");
       if (bannerText) {
@@ -88,9 +95,10 @@ export function updateProviderStatusUI() {
       els.homeApiWarning.classList.remove("configured");
       var warnText = els.homeApiWarning.querySelector(".home-api-banner-text");
       if (warnText) {
-        warnText.innerHTML =
-          "<strong>Provider API Key Required:</strong> To explore the web across time, configure your " +
-          "<strong>" + pName + "</strong> API key in Settings.";
+        warnText.innerHTML = configured
+          ? "<strong>Select a Model:</strong> Choose a model for <strong>" + pName + "</strong> in Settings."
+          : (keyless ? "<strong>Provider Setup Required:</strong> To explore the web across time, configure your " : "<strong>Provider API Key Required:</strong> To explore the web across time, configure your ") +
+            "<strong>" + pName + "</strong> " + (keyless ? "endpoint" : "API key") + " in Settings.";
       }
     }
   }

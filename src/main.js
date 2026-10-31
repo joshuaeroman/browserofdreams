@@ -20,6 +20,7 @@ import { GeminiThinking } from "./providers/gemini/thinking.js";
 import { GeminiAdapter, AgentPlatformAdapter, STATIC_VERTEX_GEMINI_MODELS, STATIC_GEMINI_IMAGE_MODELS } from "./providers/gemini/index.js";
 import { OpenRouterAdapter, STATIC_OR_TEXT_MODELS, STATIC_OR_IMAGE_MODELS, normalizeOpenRouterModelId } from "./providers/openrouter/index.js";
 import { CommandCodeAdapter } from "./providers/commandcode/index.js";
+import { LocalAdapter } from "./providers/local/index.js";
 import { OpenCodeRoute, sessionHeaders, formatOpenCodeHttpError } from "./providers/opencode/route.js";
 import { OpenCodeAdapter, OpenCodeZenAdapter, OpenCodeGoAdapter, STATIC_OPENCODE_ZEN_MODELS, STATIC_OPENCODE_GO_MODELS } from "./providers/opencode/index.js";
 import { getProvider, registerProvider, hasValidCredentials, getEffectiveImageProvider, resolveConfig, getProviderDisplayName } from "./providers/registry.js";
@@ -372,6 +373,7 @@ var BrowserOfDreams = {
   OpenCodeRoute: OpenCodeRoute,
   OpenCodeAdapter: OpenCodeAdapter,
   CommandCodeAdapter: CommandCodeAdapter,
+  LocalAdapter: LocalAdapter,
   TextArtGenerator: TextArtGenerator,
   DayMemesEngine: DayMemesEngine,
   SUPPORTED_ASPECT_RATIOS: SUPPORTED_ASPECT_RATIOS,
@@ -425,6 +427,7 @@ if (typeof window !== "undefined") {
   window.OpenCodeRoute = OpenCodeRoute;
   window.OpenCodeAdapter = OpenCodeAdapter;
   window.CommandCodeAdapter = CommandCodeAdapter;
+  window.LocalAdapter = LocalAdapter;
   window.TextArtGenerator = TextArtGenerator;
   window.DayMemesEngine = DayMemesEngine;
 
@@ -444,6 +447,7 @@ if (typeof window !== "undefined") {
   globalThis.OpenCodeRoute = OpenCodeRoute;
   globalThis.OpenCodeAdapter = OpenCodeAdapter;
   globalThis.CommandCodeAdapter = CommandCodeAdapter;
+  globalThis.LocalAdapter = LocalAdapter;
   globalThis.TextArtGenerator = TextArtGenerator;
   globalThis.DayMemesEngine = DayMemesEngine;
 }

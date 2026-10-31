@@ -1,6 +1,7 @@
 import { GeminiAdapter, AgentPlatformAdapter } from "./gemini/index.js";
 import { OpenRouterAdapter } from "./openrouter/index.js";
 import { CommandCodeAdapter } from "./commandcode/index.js";
+import { LocalAdapter } from "./local/index.js";
 
 // OpenCode Zen/Go are disabled for the public release: opencode.ai omits
 // Access-Control-Allow-Origin on inference POST routes, which makes direct
@@ -15,7 +16,8 @@ var registry = {
   "agentplatform": AgentPlatformAdapter,
   "gemini": GeminiAdapter,
   "openrouter": OpenRouterAdapter,
-  "commandcode": CommandCodeAdapter
+  "commandcode": CommandCodeAdapter,
+  "local": LocalAdapter
   // "opencode-zen": OpenCodeZenAdapter,
   // "opencode-go": OpenCodeGoAdapter
 };
@@ -36,6 +38,7 @@ export function getProviderDisplayName(id) {
     case "agentplatform": return "Google Cloud Agent Platform (Vertex AI)";
     case "openrouter": return "OpenRouter";
     case "commandcode": return "Command Code";
+    case "local": return "Local LLM (OpenAI-compatible)";
     case "opencode-zen": return "OpenCode Zen";
     case "opencode-go": return "OpenCode Go";
     default: return id || "Google Cloud Agent Platform (Vertex AI)";
@@ -52,6 +55,9 @@ export function hasValidCredentials(settings, providerId) {
     openrouterApiKey: conf.apiKey,
     commandcodeApiKey: conf.apiKey,
     opencodeApiKey: conf.apiKey,
+    localApiKey: conf.apiKey,
+    endpoint: conf.endpoint,
+    localEnabled: !!conf.localEnabled,
     googleProjectId: conf.geminiProjectId,
     vertexAuthType: conf.vertexAuthType
   };
@@ -96,7 +102,8 @@ export function resolveConfig(settings, providerId) {
     geminiAuthMethod: p === "agentplatform" ? "agentplatform" : p,
     geminiLocation: "global",
     geminiProjectId: "",
-    vertexAuthType: "apikey"
+    vertexAuthType: "apikey",
+    localEnabled: false
   };
 
   if (p === "commandcode") {
@@ -122,6 +129,10 @@ export function resolveConfig(settings, providerId) {
     conf.apiKey = useAccount ? ((account && account.apiKey) || "") : (s.googleApiKey || "");
     conf.endpoint = "https://generativelanguage.googleapis.com";
     conf.geminiAuthMethod = "gemini";
+  } else if (p === "local") {
+    conf.apiKey = useAccount ? ((account && account.apiKey) || "") : "";
+    conf.endpoint = (account && account.endpoint) || "http://localhost:11434/v1";
+    conf.localEnabled = !!(account && account.enabled);
   } else {
     if (useAccount && account) {
       conf.apiKey = account.apiKey || "";

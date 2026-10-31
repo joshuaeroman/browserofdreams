@@ -41,6 +41,22 @@ test("Command Code text art uses the page model instead of a foreign image model
   assert.equal(resolveActiveTextArtModel(openRouter, "openrouter"), "krea/krea-2-large");
 });
 
+test("Local text art never receives a foreign raster or hosted model", () => {
+  const local = {
+    pageProvider: "local",
+    pageModel: "llama3.2",
+    imageModel: "sdxl"
+  };
+  assert.equal(resolveActiveTextArtModel(local, "local"), "llama3.2");
+
+  const localNoModel = {
+    pageProvider: "local",
+    pageModel: "",
+    imageModel: "krea/krea-2-large"
+  };
+  assert.equal(resolveActiveTextArtModel(localNoModel, "local"), "");
+});
+
 test("handleDiscoveredImages rejects mismatched cached images from different pages or prompts", () => {
   const newsUrl = "http://www.nycnews.com/";
   const dateStr = "2001-09-11";
