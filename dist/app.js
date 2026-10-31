@@ -129,6 +129,10 @@ var BrowserOfDreamsBundle = (() => {
     els.editEndpoint = document.getElementById("edit-endpoint");
     els.editThinkingRow = document.getElementById("edit-thinking-row");
     els.editThinkingBudget = document.getElementById("edit-thinking-budget");
+    els.editReasoningRow = document.getElementById("edit-reasoning-row");
+    els.editReasoningEffort = document.getElementById("edit-reasoning-effort");
+    els.editHomepageReasoningRow = document.getElementById("edit-homepage-reasoning-row");
+    els.editHomepageReasoningEffort = document.getElementById("edit-homepage-reasoning-effort");
     els.providerEditSave = document.getElementById("provider-edit-save");
     els.providerEditFetch = document.getElementById("provider-edit-fetch");
     els.providerEditClose = document.getElementById("provider-edit-close");
@@ -193,6 +197,12 @@ var BrowserOfDreamsBundle = (() => {
       disabled: true
     },
     {
+      id: "commandcode",
+      name: "Command Code",
+      raster: false,
+      defaultEndpoint: "https://api.commandcode.ai/provider/v1"
+    },
+    {
       id: "openrouter",
       name: "OpenRouter",
       raster: true,
@@ -237,6 +247,9 @@ var BrowserOfDreamsBundle = (() => {
         account.location = "global";
         account.endpoint = provider.defaultEndpoint;
         account.thinkingBudget = 0;
+      } else if (provider.id === "commandcode") {
+        account.reasoningEffort = "off";
+        account.homepageReasoningEffort = "off";
       } else if (provider.id === "opencode-zen" || provider.id === "opencode-go") {
         account.endpoint = provider.defaultEndpoint;
       }
@@ -348,6 +361,7 @@ var BrowserOfDreamsBundle = (() => {
       googleImage: [],
       opencodeZenChat: [],
       opencodeGoChat: [],
+      commandcodeChat: [],
       orChat: [],
       orImage: []
     }
@@ -3038,6 +3052,644 @@ var BrowserOfDreamsBundle = (() => {
     }
   };
 
+  // src/providers/commandcode/route.js
+  var COMMANDCODE_BASE = "https://api.commandcode.ai/provider/v1";
+  var DEFAULT_COMMANDCODE_MODEL = "deepseek/deepseek-v4.1-flash";
+  function commandCodeUrl(endpoint, path) {
+    var base = String(endpoint || COMMANDCODE_BASE).replace(/\/+$/, "");
+    if (/\/(chat\/completions|messages|responses|models|systemone)$/.test(base)) {
+      base = base.replace(/\/(chat\/completions|messages|responses|models|systemone)$/, "");
+    }
+    return base + path;
+  }
+  var modelRoutes = /* @__PURE__ */ Object.create(null);
+  function cacheCommandCodeModelRoutes(rawModels) {
+    if (!Array.isArray(rawModels)) return;
+    for (var i = 0; i < rawModels.length; i++) {
+      var m = rawModels[i];
+      if (m && m.id && Array.isArray(m.supported_endpoints)) {
+        modelRoutes[m.id] = m.supported_endpoints.slice();
+      }
+    }
+  }
+  function resolveCommandCodeProtocol(modelId) {
+    var id = String(modelId || "");
+    var routes = modelRoutes[id];
+    if (routes) {
+      if (routes.indexOf("/messages") !== -1) return "messages";
+      if (routes.indexOf("/chat/completions") !== -1) return "chat";
+    }
+    if (/^claude/i.test(id)) return "messages";
+    return "chat";
+  }
+  function isRetryableFieldError(xhr, pattern) {
+    return xhr.status === 400 && pattern.test(String(xhr.responseText || ""));
+  }
+  function formatCommandCodeHttpError(xhr, label) {
+    var msg = (label || "Command Code error") + " (HTTP " + xhr.status + ")";
+    if (xhr.status === 0) {
+      return msg + ": request blocked before a response. Check the network tab and that https://api.commandcode.ai is reachable.";
+    }
+    try {
+      var body = JSON.parse(xhr.responseText);
+      var err = body && body.error;
+      if (err && typeof err === "object" && err.message) {
+        msg += ": " + err.message;
+      } else if (typeof err === "string") {
+        msg += ": " + err;
+      }
+    } catch (e) {
+      if (xhr.responseText) {
+        msg += ": " + xhr.responseText.substring(0, 200);
+      }
+    }
+    return msg;
+  }
+
+  // src/providers/commandcode/models.js
+  var STATIC_COMMANDCODE_MODELS = [
+    "deepseek/deepseek-v4.1-flash",
+    "claude-sonnet-5-5",
+    "claude-sonnet-5",
+    "claude-sonnet-4-6",
+    "claude-opus-5-5",
+    "claude-opus-5",
+    "claude-haiku-5-5",
+    "gpt-6-astra",
+    "gpt-6.1-sol",
+    "gpt-6-sol",
+    "gpt-6-luna",
+    "gpt-5.6-sol",
+    "gpt-5.4",
+    "gpt-5.4-mini",
+    "gpt-5.3-codex",
+    "deepseek/deepseek-v4-pro",
+    "deepseek/deepseek-v4-flash",
+    "moonshotai/Kimi-K3.1-Pro",
+    "moonshotai/Kimi-K3",
+    "moonshotai/Kimi-K2.7-Code",
+    "z-ai/glm-5.3-flash",
+    "zai-org/GLM-5.3",
+    "zai-org/GLM-5.2",
+    "zai-org/GLM-5.1",
+    "MiniMaxAI/MiniMax-M3",
+    "minimax/minimax-m3.1-flash",
+    "xiaomi/mimo-v2.6-pro",
+    "xiaomi/mimo-v2.6-flash",
+    "Qwen/Qwen3.8-Max",
+    "Qwen/Qwen3.8-Flash",
+    "Qwen/Qwen3.7-Plus",
+    "google/gemini-4-argon",
+    "google/gemini-3.8-flash",
+    "xai/grok-4.7",
+    "xai/grok-4.6",
+    "mistral/mistral-large-4",
+    "inclusionai/ling-3.1-flash",
+    "stealth/glyph-cluster:free",
+    "reflection/beam:free"
+  ];
+  function slugifyModelPart(value) {
+    return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  }
+  function normalizeCommandCodeModelId(rawModel, knownIds) {
+    var s = String(rawModel || "").trim();
+    if (!s) return "";
+    s = s.split("?")[0].split("#")[0];
+    var isUrl = /^https?:\/\//i.test(s);
+    if (isUrl) {
+      s = s.replace(/\/+$/, "");
+      s = s.substring(s.lastIndexOf("/") + 1);
+    }
+    s = s.replace(/^\/+|\/+$/g, "");
+    if (!s) return "";
+    if (!isUrl || !Array.isArray(knownIds) || knownIds.length === 0) return s;
+    if (knownIds.indexOf(s) !== -1) return s;
+    var wanted = slugifyModelPart(s);
+    for (var i = 0; i < knownIds.length; i++) {
+      var id = String(knownIds[i] || "");
+      var modelPart = id.substring(id.lastIndexOf("/") + 1);
+      if (modelPart && slugifyModelPart(modelPart) === wanted) return id;
+    }
+    return s;
+  }
+  function fetchCommandCodeModels(endpoint, apiKey, callback) {
+    var settled = false;
+    function done(err, models) {
+      if (settled) return;
+      settled = true;
+      callback(err, models);
+    }
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", commandCodeUrl(endpoint, "/models"));
+    xhr.timeout = 2e4;
+    if (apiKey && String(apiKey).trim()) {
+      xhr.setRequestHeader("Authorization", "Bearer " + String(apiKey).trim());
+    }
+    xhr.ontimeout = function() {
+      done("Command Code model fetch timed out", null);
+    };
+    xhr.onerror = function() {
+      done("Command Code network error while fetching models", null);
+    };
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4) return;
+      if (xhr.status === 200) {
+        try {
+          var body = JSON.parse(xhr.responseText);
+          var raw = body.data || [];
+          cacheCommandCodeModelRoutes(raw);
+          var ids = [];
+          for (var i = 0; i < raw.length; i++) {
+            if (raw[i] && raw[i].id) ids.push(raw[i].id);
+          }
+          var preferred = DEFAULT_COMMANDCODE_MODEL;
+          var preferredIndex = ids.indexOf(preferred);
+          if (preferredIndex > 0) {
+            ids.splice(preferredIndex, 1);
+            ids.unshift(preferred);
+          }
+          if (ids.length > 0) {
+            done(null, ids);
+            return;
+          }
+          done("No models returned from Command Code", null);
+        } catch (e) {
+          done("Failed to parse Command Code models: " + e.message, null);
+        }
+      } else {
+        done(formatCommandCodeHttpError(xhr, "Failed to fetch Command Code models"), null);
+      }
+    };
+    xhr.send();
+  }
+
+  // src/providers/commandcode/sse.js
+  function dataPayload(line) {
+    if (line.indexOf("data:") !== 0) return null;
+    var rest = line.substring(5);
+    if (rest.charAt(0) === " ") rest = rest.substring(1);
+    return rest.trim();
+  }
+  function readDataLines(buffer, lastIndex, final) {
+    var payloads = [];
+    var index = lastIndex || 0;
+    while (true) {
+      var nl = buffer.indexOf("\n", index);
+      if (nl === -1) break;
+      var line = buffer.substring(index, nl).replace(/\r$/, "");
+      index = nl + 1;
+      var payload = dataPayload(line);
+      if (payload) payloads.push(payload);
+    }
+    if (final && index < buffer.length) {
+      var tail = buffer.substring(index).replace(/\r$/, "");
+      var tailPayload = dataPayload(tail);
+      if (tailPayload) payloads.push(tailPayload);
+      index = buffer.length;
+    }
+    return { payloads, index };
+  }
+
+  // src/providers/commandcode/chat.js
+  function sendCommandCodeChatStreaming(opts) {
+    var url = commandCodeUrl(opts.endpoint, "/chat/completions");
+    var apiKey = String(opts.apiKey || "").trim();
+    var model = opts.model || "deepseek/deepseek-v4.1-flash";
+    var temperature = opts.temperature !== void 0 ? opts.temperature : 0.7;
+    var reasoningEffort = opts.reasoningEffort;
+    var onChunk = opts.onChunk || function() {
+    };
+    var onComplete = opts.onComplete || function() {
+    };
+    var xhr = new XMLHttpRequest();
+    var lastIndex = 0;
+    var accumulatedText = "";
+    var completeCalled = false;
+    var droppedReasoningEffort = false;
+    function sendRequest() {
+      xhr.open("POST", url);
+      xhr.timeout = 6e5;
+      xhr.setRequestHeader("Content-Type", "application/json");
+      if (apiKey) xhr.setRequestHeader("Authorization", "Bearer " + apiKey);
+      var payload = {
+        model,
+        messages: opts.messages || [],
+        temperature,
+        stream: true
+      };
+      if (!droppedReasoningEffort && reasoningEffort) {
+        payload.reasoning_effort = reasoningEffort;
+      }
+      xhr.send(JSON.stringify(payload));
+    }
+    function processSSE(final) {
+      var res = readDataLines(xhr.responseText, lastIndex, final);
+      lastIndex = res.index;
+      for (var i = 0; i < res.payloads.length; i++) {
+        var dataStr = res.payloads[i];
+        if (dataStr === "[DONE]") continue;
+        try {
+          var parsed = JSON.parse(dataStr);
+          if (parsed.error && parsed.error.message) {
+            finish(parsed.error.message);
+            return;
+          }
+          var choice = parsed.choices && parsed.choices[0];
+          if (!choice) continue;
+          var delta = choice.delta;
+          var content = delta && delta.content;
+          if (typeof content === "string" && content.length > 0) {
+            accumulatedText += content;
+            onChunk(content, accumulatedText);
+          }
+        } catch (e) {
+        }
+      }
+    }
+    function finish(err) {
+      if (completeCalled) return;
+      completeCalled = true;
+      if (err) {
+        onComplete(accumulatedText, err);
+        return;
+      }
+      if (accumulatedText.length > 0) {
+        onComplete(accumulatedText, null);
+        return;
+      }
+      var body = String(xhr.responseText || "");
+      if (/^\s*data:/m.test(body)) {
+        onComplete("", "Empty response from Command Code");
+        return;
+      }
+      try {
+        var obj = JSON.parse(xhr.responseText);
+        var content = obj.choices && obj.choices[0] && obj.choices[0].message && obj.choices[0].message.content;
+        if (typeof content === "string" && content.length > 0) {
+          onComplete(content, null);
+        } else {
+          onComplete("", "Empty response from Command Code");
+        }
+      } catch (e) {
+        onComplete("", "Failed to parse Command Code response");
+      }
+    }
+    xhr.ontimeout = function() {
+      finish("Command Code request timed out");
+    };
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === 3) {
+        processSSE(false);
+      } else if (xhr.readyState === 4) {
+        if (xhr.status === 200) {
+          processSSE(true);
+          finish(null);
+        } else if (!droppedReasoningEffort && reasoningEffort && isRetryableFieldError(xhr, /reasoning_effort/i)) {
+          droppedReasoningEffort = true;
+          lastIndex = 0;
+          accumulatedText = "";
+          sendRequest();
+        } else {
+          finish(formatCommandCodeHttpError(xhr, "Command Code chat"));
+        }
+      }
+    };
+    sendRequest();
+    return {
+      xhr,
+      abort: function() {
+        completeCalled = true;
+        xhr.abort();
+      }
+    };
+  }
+  function completeCommandCodeChatOnce(opts, callback) {
+    var url = commandCodeUrl(opts.endpoint, "/chat/completions");
+    var apiKey = String(opts.apiKey || "").trim();
+    var model = opts.model || "deepseek/deepseek-v4.1-flash";
+    var temperature = opts.temperature !== void 0 ? opts.temperature : 0.5;
+    var reasoningEffort = opts.reasoningEffort;
+    var completed = false;
+    function done(err, text) {
+      if (completed) return;
+      completed = true;
+      callback(err, text);
+    }
+    var xhr = new XMLHttpRequest();
+    var droppedReasoningEffort = false;
+    function sendRequest() {
+      xhr.open("POST", url);
+      xhr.timeout = opts.timeout || 2e4;
+      xhr.setRequestHeader("Content-Type", "application/json");
+      if (apiKey) xhr.setRequestHeader("Authorization", "Bearer " + apiKey);
+      var payload = {
+        model,
+        messages: opts.messages || [],
+        temperature,
+        stream: false
+      };
+      if (!droppedReasoningEffort && reasoningEffort) {
+        payload.reasoning_effort = reasoningEffort;
+      }
+      xhr.send(JSON.stringify(payload));
+    }
+    xhr.ontimeout = function() {
+      done("Command Code request timed out", null);
+    };
+    xhr.onerror = function() {
+      done("Command Code network error", null);
+    };
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4) return;
+      if (xhr.status === 200) {
+        try {
+          var data = JSON.parse(xhr.responseText);
+          var content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+          done(null, typeof content === "string" ? content : "");
+        } catch (e) {
+          done("Failed to parse Command Code response", null);
+        }
+      } else {
+        if (!droppedReasoningEffort && reasoningEffort && isRetryableFieldError(xhr, /reasoning_effort/i)) {
+          droppedReasoningEffort = true;
+          sendRequest();
+        } else {
+          done(formatCommandCodeHttpError(xhr, "Command Code"), null);
+        }
+      }
+    };
+    sendRequest();
+    return {
+      xhr,
+      abort: function() {
+        completed = true;
+        xhr.abort();
+      }
+    };
+  }
+
+  // src/providers/commandcode/messages.js
+  function translateCommandCodeMessages(neutralMessages) {
+    var systemText = "";
+    var out = [];
+    for (var i = 0; i < (neutralMessages || []).length; i++) {
+      var m = neutralMessages[i];
+      if (m.role === "system") {
+        if (typeof m.content === "string" && m.content.length > 0) {
+          systemText += (systemText.length > 0 ? "\n\n" : "") + m.content;
+        }
+      } else if (m.role === "assistant" || m.role === "user") {
+        out.push({
+          role: m.role,
+          content: typeof m.content === "string" ? m.content : ""
+        });
+      }
+    }
+    return { system: systemText, messages: out };
+  }
+  function parseCommandCodeMessageSSE(buffer, lastIndex, final) {
+    var res = readDataLines(buffer, lastIndex, final);
+    var tokens = [];
+    for (var i = 0; i < res.payloads.length; i++) {
+      try {
+        var obj = JSON.parse(res.payloads[i]);
+        switch (obj.type) {
+          case "content_block_delta":
+            if (obj.delta && obj.delta.type === "text_delta" && typeof obj.delta.text === "string") {
+              tokens.push({ content: obj.delta.text });
+            }
+            break;
+          case "message_stop":
+            tokens.push({ done: true });
+            break;
+          case "error":
+            tokens.push({ error: obj.error && obj.error.message || "stream error" });
+            break;
+          default:
+            break;
+        }
+      } catch (e) {
+      }
+    }
+    return { tokens, newIndex: res.index };
+  }
+  function buildMessageBody(opts, stream, stage) {
+    var translated = translateCommandCodeMessages(opts.messages || []);
+    var body = {
+      model: opts.model || "claude-sonnet-5-5",
+      max_tokens: opts.maxTokens || 16384,
+      messages: translated.messages,
+      stream
+    };
+    if (translated.system) body.system = translated.system;
+    var effort = opts.reasoningEffort || "off";
+    var attempt = stage || 0;
+    if (attempt === 0) {
+      body.thinking = effort === "off" ? { type: "disabled" } : { type: "adaptive" };
+    }
+    if (effort !== "off" && attempt < 2) {
+      body.output_config = { effort };
+    }
+    return body;
+  }
+  function extractMessageText(response) {
+    var text = "";
+    if (response && response.content && response.content.length) {
+      for (var i = 0; i < response.content.length; i++) {
+        var block = response.content[i];
+        if (block.type === "text" && typeof block.text === "string") {
+          text += block.text;
+        }
+      }
+    }
+    return text;
+  }
+  function sendCommandCodeMessagesStreaming(opts) {
+    var url = commandCodeUrl(opts.endpoint, "/messages");
+    var apiKey = String(opts.apiKey || "").trim();
+    var onChunk = opts.onChunk || function() {
+    };
+    var onComplete = opts.onComplete || function() {
+    };
+    var xhr = new XMLHttpRequest();
+    var lastParseIndex = 0;
+    var accumulatedText = "";
+    var streamError = null;
+    var completeCalled = false;
+    var effort = opts.reasoningEffort || "off";
+    var maxAttempt = effort === "off" ? 1 : 2;
+    var attempt = 0;
+    function sendRequest() {
+      xhr.open("POST", url);
+      xhr.timeout = 6e5;
+      xhr.setRequestHeader("Content-Type", "application/json");
+      if (apiKey) xhr.setRequestHeader("Authorization", "Bearer " + apiKey);
+      xhr.send(JSON.stringify(buildMessageBody(opts, true, attempt)));
+    }
+    function processBuffer(final) {
+      var res = parseCommandCodeMessageSSE(xhr.responseText, lastParseIndex, final);
+      lastParseIndex = res.newIndex;
+      for (var i = 0; i < res.tokens.length; i++) {
+        var tok = res.tokens[i];
+        if (tok.error) {
+          streamError = tok.error;
+          continue;
+        }
+        if (tok.content) {
+          accumulatedText += tok.content;
+          onChunk(tok.content, accumulatedText);
+        }
+      }
+    }
+    function finish(err) {
+      if (completeCalled) return;
+      completeCalled = true;
+      if (err) {
+        onComplete(accumulatedText, err);
+        return;
+      }
+      if (accumulatedText.length > 0) {
+        onComplete(accumulatedText, null);
+        return;
+      }
+      var body = String(xhr.responseText || "");
+      if (/^\s*data:/m.test(body)) {
+        onComplete("", "Empty response from Command Code messages");
+        return;
+      }
+      try {
+        var text = extractMessageText(JSON.parse(xhr.responseText));
+        if (text.length > 0) {
+          onComplete(text, null);
+        } else {
+          onComplete("", "Empty response from Command Code messages");
+        }
+      } catch (e) {
+        onComplete("", "Failed to parse Command Code messages response");
+      }
+    }
+    xhr.ontimeout = function() {
+      finish("Command Code messages request timed out");
+    };
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === 3) {
+        processBuffer(false);
+      } else if (xhr.readyState === 4) {
+        if (xhr.status === 200) {
+          processBuffer(true);
+          finish(streamError);
+        } else if (attempt < maxAttempt && isRetryableFieldError(xhr, /thinking|output_config|effort/i)) {
+          attempt++;
+          lastParseIndex = 0;
+          accumulatedText = "";
+          streamError = null;
+          sendRequest();
+        } else {
+          finish(formatCommandCodeHttpError(xhr, "Command Code messages"));
+        }
+      }
+    };
+    sendRequest();
+    return {
+      xhr,
+      abort: function() {
+        completeCalled = true;
+        xhr.abort();
+      }
+    };
+  }
+  function completeCommandCodeMessagesOnce(opts, callback) {
+    var url = commandCodeUrl(opts.endpoint, "/messages");
+    var apiKey = String(opts.apiKey || "").trim();
+    var completed = false;
+    function done(err, text) {
+      if (completed) return;
+      completed = true;
+      callback(err, text);
+    }
+    var xhr = new XMLHttpRequest();
+    var effort = opts.reasoningEffort || "off";
+    var maxAttempt = effort === "off" ? 1 : 2;
+    var attempt = 0;
+    function sendRequest() {
+      xhr.open("POST", url);
+      xhr.timeout = opts.timeout || 2e4;
+      xhr.setRequestHeader("Content-Type", "application/json");
+      if (apiKey) xhr.setRequestHeader("Authorization", "Bearer " + apiKey);
+      xhr.send(JSON.stringify(buildMessageBody(opts, false, attempt)));
+    }
+    xhr.ontimeout = function() {
+      done("Command Code messages request timed out", null);
+    };
+    xhr.onerror = function() {
+      done("Command Code network error", null);
+    };
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4) return;
+      if (xhr.status === 200) {
+        try {
+          done(null, extractMessageText(JSON.parse(xhr.responseText)));
+        } catch (e) {
+          done("Failed to parse Command Code messages response", null);
+        }
+      } else {
+        if (attempt < maxAttempt && isRetryableFieldError(xhr, /thinking|output_config|effort/i)) {
+          attempt++;
+          sendRequest();
+        } else {
+          done(formatCommandCodeHttpError(xhr, "Command Code messages"), null);
+        }
+      }
+    };
+    sendRequest();
+    return {
+      xhr,
+      abort: function() {
+        completed = true;
+        xhr.abort();
+      }
+    };
+  }
+
+  // src/providers/commandcode/index.js
+  function prepare(opts) {
+    var o = Object.assign({}, opts || {});
+    o.model = normalizeCommandCodeModelId(o.model, STATIC_COMMANDCODE_MODELS) || DEFAULT_COMMANDCODE_MODEL;
+    o.endpoint = o.endpoint || COMMANDCODE_BASE;
+    return o;
+  }
+  function sendCommandCodeStreaming(opts) {
+    var o = prepare(opts);
+    if (resolveCommandCodeProtocol(o.model) === "messages") {
+      return sendCommandCodeMessagesStreaming(o);
+    }
+    return sendCommandCodeChatStreaming(o);
+  }
+  function completeCommandCodeOnce(opts, callback) {
+    var o = prepare(opts);
+    if (resolveCommandCodeProtocol(o.model) === "messages") {
+      return completeCommandCodeMessagesOnce(o, callback);
+    }
+    return completeCommandCodeChatOnce(o, callback);
+  }
+  var CommandCodeAdapter = {
+    id: "commandcode",
+    name: "Command Code",
+    STATIC_COMMANDCODE_MODELS,
+    presets: [
+      { id: "commandcode", name: "Command Code", url: COMMANDCODE_BASE }
+    ],
+    fetchModels: fetchCommandCodeModels,
+    sendStreaming: sendCommandCodeStreaming,
+    streamChat: sendCommandCodeStreaming,
+    completeOnce: completeCommandCodeOnce,
+    normalizeModelId: normalizeCommandCodeModelId,
+    resolveProtocol: resolveCommandCodeProtocol,
+    hasCredentials: function(config) {
+      return !!(config && config.commandcodeApiKey && String(config.commandcodeApiKey).trim().length > 0);
+    }
+  };
+
   // src/providers/adapter.js
   function isOpenCodeProvider(providerId) {
     return providerId === "opencode-zen" || providerId === "opencode-go";
@@ -3050,7 +3702,8 @@ var BrowserOfDreamsBundle = (() => {
   var registry = {
     "agentplatform": AgentPlatformAdapter,
     "gemini": GeminiAdapter,
-    "openrouter": OpenRouterAdapter
+    "openrouter": OpenRouterAdapter,
+    "commandcode": CommandCodeAdapter
     // "opencode-zen": OpenCodeZenAdapter,
     // "opencode-go": OpenCodeGoAdapter
   };
@@ -3067,6 +3720,8 @@ var BrowserOfDreamsBundle = (() => {
         return "Google Cloud Agent Platform (Vertex AI)";
       case "openrouter":
         return "OpenRouter";
+      case "commandcode":
+        return "Command Code";
       case "opencode-zen":
         return "OpenCode Zen";
       case "opencode-go":
@@ -3083,6 +3738,7 @@ var BrowserOfDreamsBundle = (() => {
       apiKey: conf.apiKey,
       googleApiKey: conf.apiKey,
       openrouterApiKey: conf.apiKey,
+      commandcodeApiKey: conf.apiKey,
       opencodeApiKey: conf.apiKey,
       googleProjectId: conf.geminiProjectId,
       vertexAuthType: conf.vertexAuthType
@@ -3100,9 +3756,15 @@ var BrowserOfDreamsBundle = (() => {
     var rawImg = overrideRawImgProv;
     if (rawImg === void 0 || rawImg === null || rawImg === "") rawImg = s.imageProvider || "";
     rawImg = normalizeProviderId(rawImg);
-    if (!rawImg || rawImg === "same") {
-      return isRasterProvider(pageProv) ? pageProv : pageProv;
+    if (!rawImg) {
+      if (isRasterProvider(pageProv)) return pageProv;
+      for (var i = 0; i < PROVIDER_CATALOG.length; i++) {
+        var candidate = PROVIDER_CATALOG[i];
+        if (candidate.raster && hasValidCredentials(s, candidate.id)) return candidate.id;
+      }
+      return "gemini";
     }
+    if (rawImg === "same") return pageProv;
     return rawImg;
   }
   function resolveConfig(settings, providerId) {
@@ -3121,7 +3783,12 @@ var BrowserOfDreamsBundle = (() => {
       geminiProjectId: "",
       vertexAuthType: "apikey"
     };
-    if (p === "openrouter") {
+    if (p === "commandcode") {
+      conf.apiKey = useAccount ? account && account.apiKey || "" : s.commandcodeApiKey || "";
+      conf.endpoint = account && account.endpoint || providerById(p) && providerById(p).defaultEndpoint || "";
+      conf.reasoningEffort = account && account.reasoningEffort || "off";
+      conf.homepageReasoningEffort = account && account.homepageReasoningEffort || "off";
+    } else if (p === "openrouter") {
       conf.apiKey = useAccount ? account && account.apiKey || "" : s.openrouterApiKey || "";
       conf.endpoint = "https://openrouter.ai/api/v1";
     } else if (p === "opencode-go" || p === "opencode-zen") {
@@ -3348,7 +4015,8 @@ var BrowserOfDreamsBundle = (() => {
       ...providerConfig,
       messages,
       maxTokens: 180,
-      temperature: 0.5
+      temperature: 0.5,
+      reasoningEffort: "off"
     };
     activeMemeRequest = providerAdapter.completeOnce(req, function(err, finalText) {
       activeMemeRequest = null;
@@ -4383,6 +5051,20 @@ var BrowserOfDreamsBundle = (() => {
         onComplete: onDone
       });
     }
+    if (provider === "commandcode") {
+      return CommandCodeAdapter.sendStreaming({
+        endpoint: o.endpoint,
+        apiKey: (o.commandcodeApiKey || o.apiKey || "").trim(),
+        model: model || "deepseek/deepseek-v4.1-flash",
+        temperature: 0.65,
+        reasoningEffort: o.reasoningEffort,
+        maxTokens: 8192,
+        messages,
+        onChunk: o.onChunk || function() {
+        },
+        onComplete: onDone
+      });
+    }
     if (provider === "opencode-zen" || provider === "opencode-go") {
       var isGo = provider === "opencode-go";
       return OpenCodeAdapter.sendStreaming({
@@ -4430,6 +5112,9 @@ var BrowserOfDreamsBundle = (() => {
   // src/features/images.js
   function resolveActiveTextArtModel(settings, imgProvider) {
     var s = settings || state.settings;
+    if (imgProvider === "commandcode") {
+      return s.pageModel || "deepseek/deepseek-v4.1-flash";
+    }
     var rawModel = String(s.imageModel || "").trim();
     var isDedicatedImageId = /(-image|^imagen|flux|stable-diffusion|recraft|seedream)/i.test(rawModel);
     if (!rawModel || rawModel === "same-as-page" || isDedicatedImageId) {
@@ -4666,6 +5351,8 @@ var BrowserOfDreamsBundle = (() => {
         apiKey: imgConf.apiKey,
         googleApiKey: imgConf.apiKey,
         opencodeApiKey: imgConf.apiKey,
+        commandcodeApiKey: imgConf.apiKey,
+        reasoningEffort: imgConf.reasoningEffort,
         openrouterApiKey: imgConf.apiKey,
         geminiVertexAuthType: imgConf.vertexAuthType,
         geminiProjectId: imgConf.geminiProjectId,
@@ -5310,7 +5997,7 @@ var BrowserOfDreamsBundle = (() => {
   }
 
   // build-stamp:build-stamp
-  var BUILD_TIME = "2026-10-28T00:45:09.640Z";
+  var BUILD_TIME = "2026-10-31T20:31:49.497Z";
 
   // src/ui/settings-modal.js
   var OTHER = "__other__";
@@ -5365,6 +6052,9 @@ var BrowserOfDreamsBundle = (() => {
     if (p === "opencode-zen") {
       return cm.opencodeZenChat && cm.opencodeZenChat.length > 0 ? cm.opencodeZenChat.slice() : STATIC_OPENCODE_ZEN_MODELS.slice();
     }
+    if (p === "commandcode") {
+      return cm.commandcodeChat && cm.commandcodeChat.length > 0 ? cm.commandcodeChat.slice() : STATIC_COMMANDCODE_MODELS.slice();
+    }
     if (p === "opencode-go") {
       return cm.opencodeGoChat && cm.opencodeGoChat.length > 0 ? cm.opencodeGoChat.slice() : STATIC_OPENCODE_GO_MODELS.slice();
     }
@@ -5418,6 +6108,9 @@ var BrowserOfDreamsBundle = (() => {
     var value = selectEl.value === OTHER ? customEl ? customEl.value.trim() : "" : selectEl.value;
     if (providerId === "openrouter" || /^https?:\/\/(?:www\.)?openrouter\.ai\//i.test(value)) {
       value = OpenRouterAdapter.normalizeModelId(value);
+    }
+    if (providerId === "commandcode") {
+      value = CommandCodeAdapter.normalizeModelId(value, getAvailableModelList("commandcode", false));
     }
     return value;
   }
@@ -5556,10 +6249,13 @@ var BrowserOfDreamsBundle = (() => {
     if (els.providerEditTitle) els.providerEditTitle.textContent = provider.name;
     setEditStatus("");
     var isAgent = providerId === "agentplatform";
+    var isCommandCode = providerId === "commandcode";
     var openCode = isOpenCodeProvider(providerId);
     if (els.editAuthRow) els.editAuthRow.hidden = !isAgent;
     if (els.editProjectRow) els.editProjectRow.hidden = !isAgent;
     if (els.editThinkingRow) els.editThinkingRow.hidden = !isAgent;
+    if (els.editReasoningRow) els.editReasoningRow.hidden = !isCommandCode;
+    if (els.editHomepageReasoningRow) els.editHomepageReasoningRow.hidden = !isCommandCode;
     if (els.editEndpointRow) els.editEndpointRow.hidden = !(isAgent || openCode);
     if (els.providerCorsNotice) els.providerCorsNotice.hidden = !openCode;
     if (els.editKeyLabel) els.editKeyLabel.textContent = isAgent ? "API Key or Access Token:" : "API Key:";
@@ -5578,6 +6274,12 @@ var BrowserOfDreamsBundle = (() => {
     } else if (openCode && els.editEndpoint) {
       els.editEndpoint.value = account.endpoint || provider.defaultEndpoint;
     }
+    if (isCommandCode && els.editReasoningEffort) {
+      els.editReasoningEffort.value = account.reasoningEffort || "off";
+    }
+    if (isCommandCode && els.editHomepageReasoningEffort) {
+      els.editHomepageReasoningEffort.value = account.homepageReasoningEffort || "off";
+    }
   }
   function readEditorIntoDraft() {
     if (!editingProviderId || !draftAccounts) return;
@@ -5593,6 +6295,12 @@ var BrowserOfDreamsBundle = (() => {
       account.thinkingBudget = els.editThinkingBudget ? parseInt(els.editThinkingBudget.value, 10) || 0 : account.thinkingBudget;
     } else if (isOpenCodeProvider(id) && els.editEndpoint) {
       account.endpoint = els.editEndpoint.value.trim() || provider.defaultEndpoint;
+    }
+    if (id === "commandcode" && els.editReasoningEffort) {
+      account.reasoningEffort = els.editReasoningEffort.value || "off";
+    }
+    if (id === "commandcode" && els.editHomepageReasoningEffort) {
+      account.homepageReasoningEffort = els.editHomepageReasoningEffort.value || "off";
     }
   }
   function maybeCopySiblingKey() {
@@ -5637,6 +6345,20 @@ var BrowserOfDreamsBundle = (() => {
     }
     var provider = providerById(id);
     setEditStatus("Fetching " + provider.name + " models\u2026");
+    if (id === "commandcode") {
+      var ccEndpoint = account.endpoint || provider.defaultEndpoint;
+      CommandCodeAdapter.fetchModels(ccEndpoint, key, function(err, models) {
+        if (err || !models) {
+          setEditStatus("\u26A0\uFE0F " + (err || "Failed to fetch models"));
+          return;
+        }
+        state.settings.cachedModels = state.settings.cachedModels || {};
+        var cached = models.slice(0, 200);
+        state.settings.cachedModels.commandcodeChat = cached;
+        cacheAndRefresh("\u2713 Loaded " + cached.length + " Command Code models.");
+      });
+      return;
+    }
     if (id === "openrouter") {
       OpenRouterAdapter.fetchModels(key, function(err, result) {
         if (err || !result) {
@@ -5939,6 +6661,7 @@ var BrowserOfDreamsBundle = (() => {
       messages,
       temperature: copts.temperature !== void 0 ? copts.temperature : settings.temperature,
       maxTokens: copts.maxTokens !== void 0 ? copts.maxTokens : 16384,
+      reasoningEffort: copts.homepage ? config.homepageReasoningEffort : config.reasoningEffort,
       thinkingBudget: config.thinkingBudget || 0,
       geminiAuthMethod: config.geminiAuthMethod,
       vertexAuthType: config.vertexAuthType,
@@ -6197,7 +6920,7 @@ var BrowserOfDreamsBundle = (() => {
             mountHtmlInViewport(cleanHtml, normalizedUrl, dateStr, false);
           }
         }
-        state.activeRequest = dispatchStreaming(messages, onStreamChunk, onStreamComplete);
+        state.activeRequest = dispatchStreaming(messages, onStreamChunk, onStreamComplete, { homepage: isHome });
       }
       if (needsHomepageFirst) {
         showLoadingOverlay({
@@ -6264,7 +6987,8 @@ var BrowserOfDreamsBundle = (() => {
               renderRecentHistory(navigateToDream);
             }
             streamTargetPage(homeCleanHtml || "", true);
-          }
+          },
+          { homepage: true }
         );
         return;
       }
@@ -6856,6 +7580,7 @@ var BrowserOfDreamsBundle = (() => {
     OpenRouterAdapter,
     OpenCodeRoute,
     OpenCodeAdapter,
+    CommandCodeAdapter,
     TextArtGenerator,
     DayMemesEngine,
     SUPPORTED_ASPECT_RATIOS,
@@ -6907,6 +7632,7 @@ var BrowserOfDreamsBundle = (() => {
     window.OpenRouterAdapter = OpenRouterAdapter;
     window.OpenCodeRoute = OpenCodeRoute;
     window.OpenCodeAdapter = OpenCodeAdapter;
+    window.CommandCodeAdapter = CommandCodeAdapter;
     window.TextArtGenerator = TextArtGenerator;
     window.DayMemesEngine = DayMemesEngine;
     if (typeof document !== "undefined" && typeof document.getElementById === "function") {
@@ -6924,6 +7650,7 @@ var BrowserOfDreamsBundle = (() => {
     globalThis.OpenRouterAdapter = OpenRouterAdapter;
     globalThis.OpenCodeRoute = OpenCodeRoute;
     globalThis.OpenCodeAdapter = OpenCodeAdapter;
+    globalThis.CommandCodeAdapter = CommandCodeAdapter;
     globalThis.TextArtGenerator = TextArtGenerator;
     globalThis.DayMemesEngine = DayMemesEngine;
   }

@@ -8,6 +8,7 @@ import { isTextArtEngine, isOpenCodeProvider } from "../providers/adapter.js";
 import { OpenCodeAdapter, STATIC_OPENCODE_ZEN_MODELS, STATIC_OPENCODE_GO_MODELS } from "../providers/opencode/index.js";
 import { GeminiAdapter, AgentPlatform, STATIC_VERTEX_GEMINI_MODELS, STATIC_GEMINI_IMAGE_MODELS } from "../providers/gemini/index.js";
 import { OpenRouterAdapter, STATIC_OR_TEXT_MODELS, STATIC_OR_IMAGE_MODELS } from "../providers/openrouter/index.js";
+import { CommandCodeAdapter, STATIC_COMMANDCODE_MODELS } from "../providers/commandcode/index.js";
 import { isStandaloneMode, canPromptInstall, promptInstall, syncStandaloneDOM } from "../features/pwa.js";
 import { BUILD_TIME } from "build-stamp";
 
@@ -73,6 +74,11 @@ export function getAvailableModelList(provider, isImage) {
       ? cm.opencodeZenChat.slice()
       : STATIC_OPENCODE_ZEN_MODELS.slice();
   }
+  if (p === "commandcode") {
+    return (cm.commandcodeChat && cm.commandcodeChat.length > 0)
+      ? cm.commandcodeChat.slice()
+      : STATIC_COMMANDCODE_MODELS.slice();
+  }
   if (p === "opencode-go") {
     return (cm.opencodeGoChat && cm.opencodeGoChat.length > 0)
       ? cm.opencodeGoChat.slice()
@@ -136,6 +142,9 @@ function readPickerModel(selectEl, customEl, providerId) {
     : selectEl.value;
   if (providerId === "openrouter" || /^https?:\/\/(?:www\.)?openrouter\.ai\//i.test(value)) {
     value = OpenRouterAdapter.normalizeModelId(value);
+  }
+  if (providerId === "commandcode") {
+    value = CommandCodeAdapter.normalizeModelId(value, getAvailableModelList("commandcode", false));
   }
   return value;
 }
@@ -290,10 +299,13 @@ function openEditor(providerId) {
   setEditStatus("");
 
   var isAgent = providerId === "agentplatform";
+  var isCommandCode = providerId === "commandcode";
   var openCode = isOpenCodeProvider(providerId);
   if (els.editAuthRow) els.editAuthRow.hidden = !isAgent;
   if (els.editProjectRow) els.editProjectRow.hidden = !isAgent;
   if (els.editThinkingRow) els.editThinkingRow.hidden = !isAgent;
+  if (els.editReasoningRow) els.editReasoningRow.hidden = !isCommandCode;
+  if (els.editHomepageReasoningRow) els.editHomepageReasoningRow.hidden = !isCommandCode;
   if (els.editEndpointRow) els.editEndpointRow.hidden = !(isAgent || openCode);
   if (els.providerCorsNotice) els.providerCorsNotice.hidden = !openCode;
   if (els.editKeyLabel) els.editKeyLabel.textContent = isAgent ? "API Key or Access Token:" : "API Key:";
@@ -312,6 +324,12 @@ function openEditor(providerId) {
   } else if (openCode && els.editEndpoint) {
     els.editEndpoint.value = account.endpoint || provider.defaultEndpoint;
   }
+  if (isCommandCode && els.editReasoningEffort) {
+    els.editReasoningEffort.value = account.reasoningEffort || "off";
+  }
+  if (isCommandCode && els.editHomepageReasoningEffort) {
+    els.editHomepageReasoningEffort.value = account.homepageReasoningEffort || "off";
+  }
 }
 
 function readEditorIntoDraft() {
@@ -328,6 +346,12 @@ function readEditorIntoDraft() {
     account.thinkingBudget = els.editThinkingBudget ? (parseInt(els.editThinkingBudget.value, 10) || 0) : account.thinkingBudget;
   } else if (isOpenCodeProvider(id) && els.editEndpoint) {
     account.endpoint = els.editEndpoint.value.trim() || provider.defaultEndpoint;
+  }
+  if (id === "commandcode" && els.editReasoningEffort) {
+    account.reasoningEffort = els.editReasoningEffort.value || "off";
+  }
+  if (id === "commandcode" && els.editHomepageReasoningEffort) {
+    account.homepageReasoningEffort = els.editHomepageReasoningEffort.value || "off";
   }
 }
 
@@ -379,6 +403,21 @@ function fetchEditingProvider() {
   }
   var provider = providerById(id);
   setEditStatus("Fetching " + provider.name + " models…");
+
+  if (id === "commandcode") {
+    var ccEndpoint = account.endpoint || provider.defaultEndpoint;
+    CommandCodeAdapter.fetchModels(ccEndpoint, key, function(err, models) {
+      if (err || !models) {
+        setEditStatus("⚠️ " + (err || "Failed to fetch models"));
+        return;
+      }
+      state.settings.cachedModels = state.settings.cachedModels || {};
+      var cached = models.slice(0, 200);
+      state.settings.cachedModels.commandcodeChat = cached;
+      cacheAndRefresh("✓ Loaded " + cached.length + " Command Code models.");
+    });
+    return;
+  }
 
   if (id === "openrouter") {
     OpenRouterAdapter.fetchModels(key, function(err, result) {

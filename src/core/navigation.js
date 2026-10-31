@@ -98,6 +98,7 @@ function dispatchStreaming(messages, onChunk, onComplete, customOpts) {
     messages: messages,
     temperature: copts.temperature !== undefined ? copts.temperature : settings.temperature,
     maxTokens: copts.maxTokens !== undefined ? copts.maxTokens : 16384,
+    reasoningEffort: copts.homepage ? config.homepageReasoningEffort : config.reasoningEffort,
     thinkingBudget: config.thinkingBudget || 0,
     geminiAuthMethod: config.geminiAuthMethod,
     vertexAuthType: config.vertexAuthType,
@@ -394,7 +395,7 @@ export function navigateToDream(rawUrl, dateStr, options) {
         }
       }
 
-      state.activeRequest = dispatchStreaming(messages, onStreamChunk, onStreamComplete);
+      state.activeRequest = dispatchStreaming(messages, onStreamChunk, onStreamComplete, { homepage: isHome });
     }
 
     if (needsHomepageFirst) {
@@ -466,7 +467,8 @@ export function navigateToDream(rawUrl, dateStr, options) {
             renderRecentHistory(navigateToDream);
           }
           streamTargetPage(homeCleanHtml || "", true);
-        }
+        },
+        { homepage: true }
       );
       return;
     }

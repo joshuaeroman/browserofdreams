@@ -49,6 +49,7 @@ pair in the bottom bar before dreaming.
 | Provider | Works from GitHub Pages? | Notes |
 | --- | --- | --- |
 | **OpenRouter** | ✅ Out of the box | Largest model catalog; [request a key](https://openrouter.ai/keys) |
+| **Command Code** | ✅ Out of the box | Text-only (the Provider API has no image endpoint). Claude models default to `/provider/v1/messages` and everything else to `/provider/v1/chat/completions` (a model's fetched `supported_endpoints` overrides the default); [get a key](https://commandcode.ai/studio/). CORS preflight allows only `Content-Type` and `Authorization`, which is exactly what the adapter sends |
 | **Google AI Studio (GEMINI API)** | ✅ Out of the box | Express API keys |
 | **Google Cloud Vertex AI (Agent Platform)** | ✅ API key (Express) / gcloud access token | Access tokens are short-lived — re-paste after expiry |
 | **OpenCode (Zen / Go)** | ❌ **Disabled in code** | opencode.ai omits `Access-Control-Allow-Origin` on inference POST routes, so direct browser calls are blocked by CORS. The adapter lives on in `src/providers/opencode/`; re-enable via the `disabled` flags in `src/core/settings.js` and the registry entries in `src/providers/registry.js` |
@@ -74,14 +75,14 @@ build.mjs             esbuild bundling → dist/
 src/
   main.js             Boot & wiring 🧩
   core/               Settings, state, era engine, cache, URLs, navigation
-  providers/          OpenRouter · Gemini (AI Studio/Vertex) · OpenCode adapters
+  providers/          OpenRouter · Command Code · Gemini (AI Studio/Vertex) · OpenCode adapters
   prompts/            Dream page / memes / text-art prompt builders
   features/           Image generation, memes, text art, PWA
   bridge/             Injected into each dream: link triage + resolution runtime
   ui/                 DOM refs, toolbar, modals, status bar, home screen
   data/               Featured portals, bookmarks, fallback memes
   styles/             Era theming & retro chrome CSS
-tests/                node --test suites (53 tests)
+tests/                node --test suites (75 tests)
 ```
 
 ```bash
@@ -93,7 +94,7 @@ npm run icons         # regenerate PWA icon set (requires Python)
 ## Release checklist (for maintainers)
 
 1. Edit `src/`, then `npm test` (regenerates `dist/`).
-2. ✈️ **Bump `CACHE_NAME` in `sw.js`** (e.g. `dreams-pwa-v1` → `v2`) so installed clients
+2. ✈️ **Bump `CACHE_NAME` in `sw.js`** (e.g. `dreams-pwa-v2` → `v3`) so installed clients
    pick up the new build.
 3. Verify the "Build" stamp in ⚙ Settings matches the release time.
 4. Commit `dist/` — GitHub Pages serves the app straight from the repo root.

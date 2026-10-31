@@ -34,6 +34,12 @@ export const PROVIDER_CATALOG = [
     disabled: true
   },
   {
+    id: "commandcode",
+    name: "Command Code",
+    raster: false,
+    defaultEndpoint: "https://api.commandcode.ai/provider/v1"
+  },
+  {
     id: "openrouter",
     name: "OpenRouter",
     raster: true,
@@ -83,6 +89,9 @@ export function emptyAccounts() {
       account.location = "global";
       account.endpoint = provider.defaultEndpoint;
       account.thinkingBudget = 0;
+    } else if (provider.id === "commandcode") {
+      account.reasoningEffort = "off";
+      account.homepageReasoningEffort = "off";
     } else if (provider.id === "opencode-zen" || provider.id === "opencode-go") {
       account.endpoint = provider.defaultEndpoint;
     }
@@ -208,6 +217,7 @@ export const DEFAULT_SETTINGS = {
     googleImage: [],
     opencodeZenChat: [],
     opencodeGoChat: [],
+    commandcodeChat: [],
     orChat: [],
     orImage: []
   }

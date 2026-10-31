@@ -122,7 +122,8 @@ export function fetchDayMemesFromModel(opts, callback) {
     ...providerConfig,
     messages: messages,
     maxTokens: 180,
-    temperature: 0.5
+    temperature: 0.5,
+    reasoningEffort: "off"
   };
 
   activeMemeRequest = providerAdapter.completeOnce(req, function(err, finalText) {

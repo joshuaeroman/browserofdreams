@@ -2,6 +2,7 @@ import { buildTextArtPrompts, computePixelGridDimensions, resolveTextArtStyleMod
 import { getEraInfo } from "../core/era.js";
 import { isTextArtEngine } from "../providers/adapter.js";
 import { OpenRouterAdapter } from "../providers/openrouter/index.js";
+import { CommandCodeAdapter } from "../providers/commandcode/index.js";
 import { OpenCodeAdapter } from "../providers/opencode/index.js";
 import { GeminiAdapter } from "../providers/gemini/index.js";
 
@@ -232,6 +233,20 @@ export function generateTextModelArt(opts, callback) {
       apiKey: (o.openrouterApiKey || o.apiKey || "").trim(),
       model: model || "google/gemini-2.5-flash",
       temperature: 0.65,
+      messages: messages,
+      onChunk: o.onChunk || function() {},
+      onComplete: onDone
+    });
+  }
+
+  if (provider === "commandcode") {
+    return CommandCodeAdapter.sendStreaming({
+      endpoint: o.endpoint,
+      apiKey: (o.commandcodeApiKey || o.apiKey || "").trim(),
+      model: model || "deepseek/deepseek-v4.1-flash",
+      temperature: 0.65,
+      reasoningEffort: o.reasoningEffort,
+      maxTokens: 8192,
       messages: messages,
       onChunk: o.onChunk || function() {},
       onComplete: onDone

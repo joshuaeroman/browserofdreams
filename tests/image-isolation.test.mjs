@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { state } from "../src/core/state.js";
 import { loadPageCache, makeCacheKey } from "../src/core/cache.js";
-import { patchCachedHtmlWithImage, handleDiscoveredImages } from "../src/features/images.js";
+import { patchCachedHtmlWithImage, handleDiscoveredImages, resolveActiveTextArtModel } from "../src/features/images.js";
 
 test("patchCachedHtmlWithImage preserves targetUrl and prompt metadata in slotImages", () => {
   const targetUrl = "http://www.pets.com/";
@@ -23,6 +23,22 @@ test("patchCachedHtmlWithImage preserves targetUrl and prompt metadata in slotIm
   assert.equal(slotEntry.dataUrl, "data:image/png;base64,petdog");
   assert.equal(slotEntry.prompt, "A golden retriever dog");
   assert.equal(slotEntry.url, targetUrl);
+});
+
+test("Command Code text art uses the page model instead of a foreign image model", () => {
+  const commandCode = {
+    pageProvider: "commandcode",
+    pageModel: "claude-sonnet-5-5",
+    imageModel: "krea/krea-2-large"
+  };
+  assert.equal(resolveActiveTextArtModel(commandCode, "commandcode"), "claude-sonnet-5-5");
+
+  const openRouter = {
+    pageProvider: "openrouter",
+    pageModel: "openai/gpt-5",
+    imageModel: "krea/krea-2-large"
+  };
+  assert.equal(resolveActiveTextArtModel(openRouter, "openrouter"), "krea/krea-2-large");
 });
 
 test("handleDiscoveredImages rejects mismatched cached images from different pages or prompts", () => {

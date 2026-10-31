@@ -322,6 +322,30 @@
               <input type="number" id="edit-thinking-budget" class="settings-input" min="0" max="32768" step="256" value="0" />
               <div class="field-help">Set to 0 for fastest HTML page generation.</div>
             </div>
+            <div class="form-row" id="edit-reasoning-row" hidden>
+              <label for="edit-reasoning-effort">Reasoning Effort:</label>
+              <select id="edit-reasoning-effort" class="settings-input">
+                <option value="off">Off — fastest</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="xhigh">Extra high</option>
+                <option value="max">Max — slowest</option>
+              </select>
+              <div class="field-help">Off requests no thinking; models that cannot disable reasoning use their default. Higher levels spend more reasoning tokens before the page streams.</div>
+            </div>
+            <div class="form-row" id="edit-homepage-reasoning-row" hidden>
+              <label for="edit-homepage-reasoning-effort">Homepage Reasoning Effort:</label>
+              <select id="edit-homepage-reasoning-effort" class="settings-input">
+                <option value="off">Off — fastest</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="xhigh">Extra high</option>
+                <option value="max">Max — slowest</option>
+              </select>
+              <div class="field-help">Used for the site root / base domain that later pages reference. It is cached per date and timeline tier, so a higher level costs once for each homepage variant.</div>
+            </div>
             <div class="provider-edit-actions">
               <button type="button" id="provider-edit-save" class="small-btn">Save key</button>
               <button type="button" id="provider-edit-fetch" class="small-btn">Fetch models</button>

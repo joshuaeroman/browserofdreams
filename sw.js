@@ -4,7 +4,7 @@
  * External LLM and image provider API requests are strictly bypassed (never cached).
  */
 
-const CACHE_NAME = "dreams-pwa-v1";
+const CACHE_NAME = "dreams-pwa-v2";
 
 const PRECACHE_ASSETS = [
   "./",
@@ -43,7 +43,9 @@ function isExternalApiRequest(requestUrl) {
 self.addEventListener("install", function(event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
-      return cache.addAll(PRECACHE_ASSETS).catch(function(err) {
+      return Promise.all(PRECACHE_ASSETS.map(function(asset) {
+        return cache.add(new Request(asset, { cache: "reload" }));
+      })).catch(function(err) {
         console.warn("[SW] Some precache assets failed to cache:", err);
       });
     }).then(function() {
@@ -70,7 +72,8 @@ self.addEventListener("activate", function(event) {
   );
 });
 
-// 3. Fetch Event: Stale-While-Revalidate for app assets, bypass for AI APIs
+// 3. Fetch Event: network-first navigations, stale-while-revalidate assets,
+// bypass for AI APIs
 self.addEventListener("fetch", function(event) {
   const req = event.request;
 
@@ -84,6 +87,31 @@ self.addEventListener("fetch", function(event) {
     return;
   }
 
+  // Navigations are network-first so an updated shell is never masked by a
+  // stale cached index.html; offline falls back to the cached shell.
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req).then(function(networkResponse) {
+        if (!networkResponse || !networkResponse.ok) {
+          throw new Error("HTTP " + (networkResponse && networkResponse.status));
+        }
+        const responseClone = networkResponse.clone();
+        event.waitUntil(
+          caches.open(CACHE_NAME).then(function(cache) {
+            return cache.put(req, responseClone);
+          }).catch(function() {})
+        );
+        return networkResponse;
+      }).catch(function() {
+        return caches.match(req).then(function(cached) {
+          return cached || caches.match("./index.html");
+        });
+      })
+    );
+    return;
+  }
+
+  // Stale-While-Revalidate for app assets (navigations handled above)
   event.respondWith(
     caches.match(req).then(function(cachedResponse) {
       const fetchPromise = fetch(req).then(function(networkResponse) {
@@ -95,10 +123,6 @@ self.addEventListener("fetch", function(event) {
         }
         return networkResponse;
       }).catch(function(err) {
-        // If offline and request is a navigation, fallback to cached index.html
-        if (req.mode === "navigate") {
-          return caches.match("./index.html");
-        }
         throw err;
       });
 

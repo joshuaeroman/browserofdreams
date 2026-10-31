@@ -1,5 +1,6 @@
 import { GeminiAdapter, AgentPlatformAdapter } from "./gemini/index.js";
 import { OpenRouterAdapter } from "./openrouter/index.js";
+import { CommandCodeAdapter } from "./commandcode/index.js";
 
 // OpenCode Zen/Go are disabled for the public release: opencode.ai omits
 // Access-Control-Allow-Origin on inference POST routes, which makes direct
@@ -8,12 +9,13 @@ import { OpenRouterAdapter } from "./openrouter/index.js";
 // bundle for tests) — uncomment these lines to re-enable the providers.
 // import { OpenCodeZenAdapter, OpenCodeGoAdapter } from "./opencode/index.js";
 import { isTextArtEngine } from "./adapter.js";
-import { normalizeProviderId, isRasterProvider } from "../core/settings.js";
+import { normalizeProviderId, isRasterProvider, PROVIDER_CATALOG, providerById } from "../core/settings.js";
 
 var registry = {
   "agentplatform": AgentPlatformAdapter,
   "gemini": GeminiAdapter,
-  "openrouter": OpenRouterAdapter
+  "openrouter": OpenRouterAdapter,
+  "commandcode": CommandCodeAdapter
   // "opencode-zen": OpenCodeZenAdapter,
   // "opencode-go": OpenCodeGoAdapter
 };
@@ -33,6 +35,7 @@ export function getProviderDisplayName(id) {
     case "gemini": return "Google AI Studio (Gemini API)";
     case "agentplatform": return "Google Cloud Agent Platform (Vertex AI)";
     case "openrouter": return "OpenRouter";
+    case "commandcode": return "Command Code";
     case "opencode-zen": return "OpenCode Zen";
     case "opencode-go": return "OpenCode Go";
     default: return id || "Google Cloud Agent Platform (Vertex AI)";
@@ -47,6 +50,7 @@ export function hasValidCredentials(settings, providerId) {
     apiKey: conf.apiKey,
     googleApiKey: conf.apiKey,
     openrouterApiKey: conf.apiKey,
+    commandcodeApiKey: conf.apiKey,
     opencodeApiKey: conf.apiKey,
     googleProjectId: conf.geminiProjectId,
     vertexAuthType: conf.vertexAuthType
@@ -66,9 +70,15 @@ export function getEffectiveImageProvider(settings, overrideRawImgProv, override
   var rawImg = overrideRawImgProv;
   if (rawImg === undefined || rawImg === null || rawImg === "") rawImg = s.imageProvider || "";
   rawImg = normalizeProviderId(rawImg);
-  if (!rawImg || rawImg === "same") {
-    return isRasterProvider(pageProv) ? pageProv : pageProv;
+  if (!rawImg) {
+    if (isRasterProvider(pageProv)) return pageProv;
+    for (var i = 0; i < PROVIDER_CATALOG.length; i++) {
+      var candidate = PROVIDER_CATALOG[i];
+      if (candidate.raster && hasValidCredentials(s, candidate.id)) return candidate.id;
+    }
+    return "gemini";
   }
+  if (rawImg === "same") return pageProv;
   return rawImg;
 }
 
@@ -89,7 +99,12 @@ export function resolveConfig(settings, providerId) {
     vertexAuthType: "apikey"
   };
 
-  if (p === "openrouter") {
+  if (p === "commandcode") {
+    conf.apiKey = useAccount ? ((account && account.apiKey) || "") : (s.commandcodeApiKey || "");
+    conf.endpoint = (account && account.endpoint) || (providerById(p) && providerById(p).defaultEndpoint) || "";
+    conf.reasoningEffort = (account && account.reasoningEffort) || "off";
+    conf.homepageReasoningEffort = (account && account.homepageReasoningEffort) || "off";
+  } else if (p === "openrouter") {
     conf.apiKey = useAccount ? ((account && account.apiKey) || "") : (s.openrouterApiKey || "");
     conf.endpoint = "https://openrouter.ai/api/v1";
   } else if (p === "opencode-go" || p === "opencode-zen") {
