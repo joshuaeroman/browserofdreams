@@ -9,8 +9,8 @@ const CACHE_NAME = "dreams-pwa-v2";
 const PRECACHE_ASSETS = [
   "./",
   "./index.html",
-  "./dist/app.js",
-  "./dist/app.css",
+  "./dist/app.js?v=2",
+  "./dist/app.css?v=2",
   "./manifest.webmanifest",
   "./icons/icon.svg",
   "./icons/icon-192.png",

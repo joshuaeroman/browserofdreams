@@ -49,6 +49,30 @@ test("sw.js service worker script is valid and implements required caching rules
   assert.ok(script, "sw.js must compile without syntax errors");
 });
 
+test("index.html and sw.js share the app asset cache-busting versions", () => {
+  const swCode = fs.readFileSync(path.resolve("sw.js"), "utf8");
+  const cacheMatch = swCode.match(/CACHE_NAME\s*=\s*"dreams-pwa-v(\d+)"/);
+  assert.ok(cacheMatch, "CACHE_NAME must include a numeric version");
+  const version = cacheMatch[1];
+  const html = fs.readFileSync(path.resolve("index.html"), "utf8");
+  assert.ok(
+    html.includes(`src="dist/app.js?v=${version}"`),
+    "index.html must version app.js with the cache version"
+  );
+  assert.ok(
+    html.includes(`href="dist/app.css?v=${version}"`),
+    "index.html must version app.css with the cache version"
+  );
+  assert.ok(
+    swCode.includes(`"./dist/app.js?v=${version}"`),
+    "sw.js must precache the versioned app.js"
+  );
+  assert.ok(
+    swCode.includes(`"./dist/app.css?v=${version}"`),
+    "sw.js must precache the versioned app.css"
+  );
+});
+
 test("index.html contains all essential PWA headers, manifest link, and install triggers", () => {
   const htmlPath = path.resolve("index.html");
   const html = fs.readFileSync(htmlPath, "utf8");
