@@ -11,6 +11,13 @@
     }
   }
   function makePlaceholderSvg(w, h, label, role) {
+    if (role === 'icon') {
+      var iw = parseInt(w, 10) || 32;
+      var ih = parseInt(h, 10) || 32;
+      var iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + iw + '" height="' + ih + '" viewBox="0 0 32 32">' +
+        '<rect x="6" y="6" width="20" height="20" rx="5" fill="#cbd5e1"/></svg>';
+      return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(iconSvg);
+    }
     var width = parseInt(w, 10) || (role === 'ad' ? 468 : 320);
     var height = parseInt(h, 10) || (role === 'ad' ? 60 : 200);
     var safeLabel = String(label || (role === 'ad' ? 'Advertisement' : 'Image')).replace(/[<>&"']/g, ' ').substring(0, 65);
@@ -67,8 +74,8 @@
       var slotId = img.getAttribute('data-dream-id') || ('dream-img-' + i);
       img.setAttribute('data-dream-id', slotId);
       var role = (img.getAttribute('data-dream-role') || (reuse && reuse.toUpperCase().startsWith('[AD') ? 'ad' : 'photo')).toLowerCase();
-      var w = parseInt(img.getAttribute('width'), 10) || img.width || (role === 'ad' ? 468 : 360);
-      var h = parseInt(img.getAttribute('height'), 10) || img.height || (role === 'ad' ? 60 : 240);
+      var w = parseInt(img.getAttribute('width'), 10) || img.width || (role === 'ad' ? 468 : (role === 'icon' ? 32 : 360));
+      var h = parseInt(img.getAttribute('height'), 10) || img.height || (role === 'ad' ? 60 : (role === 'icon' ? 32 : 240));
       if (!img.getAttribute('width') && w > 0) {
         img.setAttribute('width', String(w));
       }
@@ -90,7 +97,7 @@
         badge.type = 'button';
         badge.className = 'dream-img-badge';
         badge.setAttribute('data-badge-for', slotId);
-        badge.textContent = alreadyLoaded ? '↻ Redream' : '🎨 Dream ' + (role === 'ad' ? 'Ad' : 'Photo');
+        badge.textContent = alreadyLoaded ? '↻ Redream' : '🎨 Dream ' + (role === 'ad' ? 'Ad' : (role === 'icon' ? 'Icon' : 'Photo'));
         badge.title = prompt || reuse || '';
         badge.addEventListener('click', (function(sId, p, re, r, a, sw, sh) {
           return function(ev) {

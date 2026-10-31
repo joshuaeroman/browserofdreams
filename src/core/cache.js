@@ -200,15 +200,31 @@ export function extractImageLabel(prompt, alt, domain, role) {
       return brand.charAt(0).toUpperCase() + brand.slice(1);
     }
   }
-  return role === "ad" ? "Advertisement" : "Editorial Photo";
+  return role === "ad" ? "Advertisement" : (role === "icon" ? "Icon" : "Editorial Photo");
+}
+
+/**
+ * A cached image may only be replayed in the engine that produced its bytes.
+ * Entries written before engine affinity existed have no engine field: raster
+ * bytes could only come from the image model, while SVG bytes came from a text
+ * engine and must not be served to image-model slots.
+ */
+export function isImageCacheEngineCompatible(item, engine) {
+  var requested = String(engine || "").trim();
+  if (!requested) return true;
+  var stored = String((item && item.engine) || "").trim();
+  if (stored) return stored === requested;
+  var isSvg = /^data:image\/svg/i.test(String((item && item.dataUrl) || ""));
+  return requested === "image-model" ? !isSvg : false;
 }
 
 export function formatImageDescriptor(item) {
   if (!item) return "";
-  var role = (item.role || "photo").toLowerCase() === "ad" ? "AD" : "PHOTO";
-  var label = item.label || extractImageLabel(item.prompt, item.alt, item.domain, item.role);
-  var w = parseInt(item.width, 10) || (role === "AD" ? 468 : 400);
-  var h = parseInt(item.height, 10) || (role === "AD" ? 60 : 300);
+  var normalizedRole = (item.role || "photo").toLowerCase();
+  var role = normalizedRole === "ad" ? "AD" : (normalizedRole === "icon" ? "ICON" : "PHOTO");
+  var label = item.label || extractImageLabel(item.prompt, item.alt, item.domain, normalizedRole);
+  var w = parseInt(item.width, 10) || (role === "AD" ? 468 : (role === "ICON" ? 32 : 400));
+  var h = parseInt(item.height, 10) || (role === "AD" ? 60 : (role === "ICON" ? 32 : 300));
   var orientation = item.orientation || getOrientation(w, h);
   return "[" + role + ": " + label + ", " + orientation + ", " + w + "x" + h + "]";
 }
@@ -243,10 +259,11 @@ export function saveDomainImage(item, optionalCache) {
   cache[cacheKey] = cache[cacheKey] || [];
   var list = cache[cacheKey];
 
-  var w = parseInt(item.width, 10) || (item.role === "ad" ? 468 : 400);
-  var h = parseInt(item.height, 10) || (item.role === "ad" ? 60 : 300);
+  var normalizedRole = String(item.role || "photo").toLowerCase();
+  var role = normalizedRole === "ad" || normalizedRole === "icon" ? normalizedRole : "photo";
+  var w = parseInt(item.width, 10) || (role === "ad" ? 468 : (role === "icon" ? 32 : 400));
+  var h = parseInt(item.height, 10) || (role === "ad" ? 60 : (role === "icon" ? 32 : 300));
   var orientation = item.orientation || getOrientation(w, h);
-  var role = (item.role || "photo").toLowerCase() === "ad" ? "ad" : "photo";
   var label = item.label || extractImageLabel(item.prompt, item.alt, domain, role);
   var prompt = String(item.prompt || "").trim();
   var descriptor = item.descriptor || formatImageDescriptor({
@@ -283,6 +300,7 @@ export function saveDomainImage(item, optionalCache) {
     width: w,
     height: h,
     descriptor: descriptor,
+    engine: String(item.engine || ""),
     dataUrl: item.dataUrl,
     timestamp: item.timestamp || Date.now()
   };
@@ -321,6 +339,14 @@ export function findMatchingDomainImage(domain, dateOrYear, divergenceVal, slotQ
   if (!slotQuery) return null;
   var available = getAvailableDomainImages(domain, dateOrYear, divergenceVal, optionalCache);
   if (!available || available.length === 0) return null;
+
+  var requestedEngine = String(slotQuery.engine || "").trim();
+  if (requestedEngine) {
+    available = available.filter(function(entry) {
+      return isImageCacheEngineCompatible(entry, requestedEngine);
+    });
+    if (available.length === 0) return null;
+  }
 
   var reuse = String(slotQuery.reuse || slotQuery.dataDreamReuse || "").trim();
   var prompt = String(slotQuery.prompt || slotQuery.dataDreamPrompt || "").trim();

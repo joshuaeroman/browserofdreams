@@ -190,7 +190,8 @@ export function migrateSettings(raw) {
   if (!imageProvider || imageProvider === "same") {
     imageProvider = isRasterProvider(next.pageProvider) ? next.pageProvider : "";
   }
-  if ((next.imageEngine || "image-model") === "image-model" && imageProvider && !isRasterProvider(imageProvider)) {
+  var engine = next.imageEngine || "image-model";
+  if ((engine === "image-model" || engine === "hybrid") && imageProvider && !isRasterProvider(imageProvider)) {
     imageProvider = isRasterProvider(next.pageProvider) ? next.pageProvider : "";
   }
   next.imageProvider = imageProvider;

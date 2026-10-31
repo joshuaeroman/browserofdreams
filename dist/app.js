@@ -338,7 +338,8 @@ var BrowserOfDreamsBundle = (() => {
     if (!imageProvider || imageProvider === "same") {
       imageProvider = isRasterProvider(next.pageProvider) ? next.pageProvider : "";
     }
-    if ((next.imageEngine || "image-model") === "image-model" && imageProvider && !isRasterProvider(imageProvider)) {
+    var engine = next.imageEngine || "image-model";
+    if ((engine === "image-model" || engine === "hybrid") && imageProvider && !isRasterProvider(imageProvider)) {
       imageProvider = isRasterProvider(next.pageProvider) ? next.pageProvider : "";
     }
     next.imageProvider = imageProvider;
@@ -852,14 +853,23 @@ var BrowserOfDreamsBundle = (() => {
         return brand.charAt(0).toUpperCase() + brand.slice(1);
       }
     }
-    return role === "ad" ? "Advertisement" : "Editorial Photo";
+    return role === "ad" ? "Advertisement" : role === "icon" ? "Icon" : "Editorial Photo";
+  }
+  function isImageCacheEngineCompatible(item, engine) {
+    var requested = String(engine || "").trim();
+    if (!requested) return true;
+    var stored = String(item && item.engine || "").trim();
+    if (stored) return stored === requested;
+    var isSvg = /^data:image\/svg/i.test(String(item && item.dataUrl || ""));
+    return requested === "image-model" ? !isSvg : false;
   }
   function formatImageDescriptor(item) {
     if (!item) return "";
-    var role = (item.role || "photo").toLowerCase() === "ad" ? "AD" : "PHOTO";
-    var label = item.label || extractImageLabel(item.prompt, item.alt, item.domain, item.role);
-    var w = parseInt(item.width, 10) || (role === "AD" ? 468 : 400);
-    var h = parseInt(item.height, 10) || (role === "AD" ? 60 : 300);
+    var normalizedRole = (item.role || "photo").toLowerCase();
+    var role = normalizedRole === "ad" ? "AD" : normalizedRole === "icon" ? "ICON" : "PHOTO";
+    var label = item.label || extractImageLabel(item.prompt, item.alt, item.domain, normalizedRole);
+    var w = parseInt(item.width, 10) || (role === "AD" ? 468 : role === "ICON" ? 32 : 400);
+    var h = parseInt(item.height, 10) || (role === "AD" ? 60 : role === "ICON" ? 32 : 300);
     var orientation = item.orientation || getOrientation(w, h);
     return "[" + role + ": " + label + ", " + orientation + ", " + w + "x" + h + "]";
   }
@@ -889,10 +899,11 @@ var BrowserOfDreamsBundle = (() => {
     var cache = resolveActiveDomainCache(optionalCache);
     cache[cacheKey] = cache[cacheKey] || [];
     var list = cache[cacheKey];
-    var w = parseInt(item.width, 10) || (item.role === "ad" ? 468 : 400);
-    var h = parseInt(item.height, 10) || (item.role === "ad" ? 60 : 300);
+    var normalizedRole = String(item.role || "photo").toLowerCase();
+    var role = normalizedRole === "ad" || normalizedRole === "icon" ? normalizedRole : "photo";
+    var w = parseInt(item.width, 10) || (role === "ad" ? 468 : role === "icon" ? 32 : 400);
+    var h = parseInt(item.height, 10) || (role === "ad" ? 60 : role === "icon" ? 32 : 300);
     var orientation = item.orientation || getOrientation(w, h);
-    var role = (item.role || "photo").toLowerCase() === "ad" ? "ad" : "photo";
     var label = item.label || extractImageLabel(item.prompt, item.alt, domain, role);
     var prompt = String(item.prompt || "").trim();
     var descriptor = item.descriptor || formatImageDescriptor({
@@ -925,6 +936,7 @@ var BrowserOfDreamsBundle = (() => {
       width: w,
       height: h,
       descriptor,
+      engine: String(item.engine || ""),
       dataUrl: item.dataUrl,
       timestamp: item.timestamp || Date.now()
     };
@@ -957,6 +969,13 @@ var BrowserOfDreamsBundle = (() => {
     if (!slotQuery) return null;
     var available = getAvailableDomainImages(domain, dateOrYear, divergenceVal, optionalCache);
     if (!available || available.length === 0) return null;
+    var requestedEngine = String(slotQuery.engine || "").trim();
+    if (requestedEngine) {
+      available = available.filter(function(entry) {
+        return isImageCacheEngineCompatible(entry, requestedEngine);
+      });
+      if (available.length === 0) return null;
+    }
     var reuse = String(slotQuery.reuse || slotQuery.dataDreamReuse || "").trim();
     var prompt = String(slotQuery.prompt || slotQuery.dataDreamPrompt || "").trim();
     var alt = String(slotQuery.alt || "").trim().toLowerCase();
@@ -1355,7 +1374,7 @@ var BrowserOfDreamsBundle = (() => {
     var dd = parts[2] ? parseInt(parts[2], 10) < 10 ? "0" + parseInt(parts[2], 10) : parts[2] : "01";
     var yyyy = parts[0] || "2001";
     var formattedDateUs = mm + "/" + dd + "/" + yyyy;
-    var imageRules = imageMode === "off" ? "Visuals: inline SVG, CSS, or ASCII. No data-dream-prompt images. Spoof marks and unnamed figures only." : "Images: 4\u20138 <img> (max 12). At least one " + era.year + ' ad (468\xD760, 300\xD7250, or 120\xD7240/160\xD7600) inside <a href>. Photos use data-dream-role="photo".\nArticle text may name real people and companies. data-dream-prompt may not: spoof brands only, and people only as generic roles (a reporter, a crowd, an athlete). No real logos, celebrity names, or likenesses.\nEvery new image: data-dream-prompt="[Date: ' + formattedDateUs + "] subject, " + era.year + ' style" plus data-dream-role, data-dream-aspect, width, height, alt.\ndata-dream-aspect is only 21:9, 16:9, 4:3, 1:1, 3:4, 9:16, 3:2, or 2:3. Example: <img data-dream-prompt="[Date: ' + formattedDateUs + '] spoof-brand banner, unnamed shoppers" data-dream-role="ad" data-dream-aspect="21:9" width="468" height="60" alt="...">\n' + (availableImagesListText ? 'Reuse a listed image with data-dream-reuse="[TYPE: Label, orientation, WxH]" or its id. Example: <img data-dream-reuse="[AD: Snapple, vertical, 100x300]" width="100" height="300" alt="Snapple">. New slots still use data-dream-prompt.' : "No cached images yet. Do not emit data-dream-reuse.");
+    var imageRules = imageMode === "off" ? "Visuals: inline SVG, CSS, or ASCII. No data-dream-prompt images. Spoof marks and unnamed figures only." : "Images: 4\u20138 <img> (max 12). At least one " + era.year + ' ad (468\xD760, 300\xD7250, or 120\xD7240/160\xD7600) inside <a href>. Photos use data-dream-role="photo".\nUp to 3 small interface icons use data-dream-role="icon", width="32" height="32", data-dream-aspect="1:1".\nArticle text may name real people and companies. data-dream-prompt may not: spoof brands only, and people only as generic roles (a reporter, a crowd, an athlete). No real logos, celebrity names, or likenesses.\nEvery new image: data-dream-prompt="[Date: ' + formattedDateUs + "] subject, " + era.year + ' style" plus data-dream-role, data-dream-aspect, width, height, alt.\ndata-dream-aspect is only 21:9, 16:9, 4:3, 1:1, 3:4, 9:16, 3:2, or 2:3. Example: <img data-dream-prompt="[Date: ' + formattedDateUs + '] spoof-brand banner, unnamed shoppers" data-dream-role="ad" data-dream-aspect="21:9" width="468" height="60" alt="...">\nIcon example: <img data-dream-prompt="[Date: ' + formattedDateUs + '] spoof-brand envelope icon, flat glyph" data-dream-role="icon" data-dream-aspect="1:1" width="32" height="32" alt="Mail">\n' + (availableImagesListText ? 'Reuse a listed image with data-dream-reuse="[TYPE: Label, orientation, WxH]" or its id. Example: <img data-dream-reuse="[AD: Snapple, vertical, 100x300]" width="100" height="300" alt="Snapple">. New slots still use data-dream-prompt.' : "No cached images yet. Do not emit data-dream-reuse.");
     var continuity = "";
     if (hasHomepageContext) {
       continuity += "site_homepage is the design system: same name, masthead, CSS, nav, footer, and ongoing stories. Replace only the body for " + url + " and mark the active nav item.\n";
@@ -1438,6 +1457,13 @@ var BrowserOfDreamsBundle = (() => {
     }
   }
   function makePlaceholderSvg(w, h, label, role) {
+    if (role === 'icon') {
+      var iw = parseInt(w, 10) || 32;
+      var ih = parseInt(h, 10) || 32;
+      var iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + iw + '" height="' + ih + '" viewBox="0 0 32 32">' +
+        '<rect x="6" y="6" width="20" height="20" rx="5" fill="#cbd5e1"/></svg>';
+      return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(iconSvg);
+    }
     var width = parseInt(w, 10) || (role === 'ad' ? 468 : 320);
     var height = parseInt(h, 10) || (role === 'ad' ? 60 : 200);
     var safeLabel = String(label || (role === 'ad' ? 'Advertisement' : 'Image')).replace(/[<>&"']/g, ' ').substring(0, 65);
@@ -1494,8 +1520,8 @@ var BrowserOfDreamsBundle = (() => {
       var slotId = img.getAttribute('data-dream-id') || ('dream-img-' + i);
       img.setAttribute('data-dream-id', slotId);
       var role = (img.getAttribute('data-dream-role') || (reuse && reuse.toUpperCase().startsWith('[AD') ? 'ad' : 'photo')).toLowerCase();
-      var w = parseInt(img.getAttribute('width'), 10) || img.width || (role === 'ad' ? 468 : 360);
-      var h = parseInt(img.getAttribute('height'), 10) || img.height || (role === 'ad' ? 60 : 240);
+      var w = parseInt(img.getAttribute('width'), 10) || img.width || (role === 'ad' ? 468 : (role === 'icon' ? 32 : 360));
+      var h = parseInt(img.getAttribute('height'), 10) || img.height || (role === 'ad' ? 60 : (role === 'icon' ? 32 : 240));
       if (!img.getAttribute('width') && w > 0) {
         img.setAttribute('width', String(w));
       }
@@ -1517,7 +1543,7 @@ var BrowserOfDreamsBundle = (() => {
         badge.type = 'button';
         badge.className = 'dream-img-badge';
         badge.setAttribute('data-badge-for', slotId);
-        badge.textContent = alreadyLoaded ? '\u21BB Redream' : '\u{1F3A8} Dream ' + (role === 'ad' ? 'Ad' : 'Photo');
+        badge.textContent = alreadyLoaded ? '\u21BB Redream' : '\u{1F3A8} Dream ' + (role === 'ad' ? 'Ad' : (role === 'icon' ? 'Icon' : 'Photo'));
         badge.title = prompt || reuse || '';
         badge.addEventListener('click', (function(sId, p, re, r, a, sw, sh) {
           return function(ev) {
@@ -4368,9 +4394,12 @@ var BrowserOfDreamsBundle = (() => {
   }
   function computePixelGridDimensions(width, height, role, aspectRatio) {
     var r = String(role || "photo").toLowerCase();
-    var w = parseInt(width, 10) || (r === "ad" ? 468 : 360);
-    var h = parseInt(height, 10) || (r === "ad" ? 60 : 240);
+    var w = parseInt(width, 10) || (r === "ad" ? 468 : r === "icon" ? 32 : 360);
+    var h = parseInt(height, 10) || (r === "ad" ? 60 : r === "icon" ? 32 : 240);
     var ratio = w / Math.max(1, h);
+    if (r === "icon") {
+      return { width: w, height: h, gridW: 16, gridH: 16 };
+    }
     if (r === "ad" && ratio >= 2.4) {
       return {
         width: w,
@@ -4405,10 +4434,11 @@ var BrowserOfDreamsBundle = (() => {
     var timelineProfile = getTimelineDivergenceProfile(o.timelineDivergence, era.year);
     var styleMode = o.styleMode || resolveTextArtStyleMode(o.imageEngine || "text-pixel", era.year);
     var dims = computePixelGridDimensions(o.width, o.height, role, o.aspectRatio);
-    var promptText = String(o.prompt || (role === "ad" ? "Vintage web banner advertisement" : "Editorial illustration")).trim();
+    var roleNoun = role === "ad" ? "web ad" : role === "icon" ? "icon" : "editorial";
+    var promptText = String(o.prompt || (role === "ad" ? "Vintage web banner advertisement" : role === "icon" ? "Small interface icon glyph" : "Editorial illustration")).trim();
     if (styleMode === "pixel") {
       var sysPixel = "Output one integer-grid pixel-art <svg>. No markdown.";
-      var userPixel = era.year + " pixel " + (role === "ad" ? "web ad" : "editorial") + ". " + promptText + "\n" + timelineProfile.imageDirective + '\nOpen with <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dims.gridW + " " + dims.gridH + '" width="' + dims.width + '" height="' + dims.height + '" shape-rendering="crispEdges">.\nOnly integer <rect> on a ' + dims.gridW + "\xD7" + dims.gridH + " grid. No circle, ellipse, smooth path, or rx/ry.\n12\u201316 VGA colors, dithered ground, outlined subject, 1px highlights. Spoof brands only. Unnamed generic people. No real logos or public figures. " + (role === "ad" ? 'Bevel (light top/left, dark bottom/right), icon left, Courier headline font-size="' + Math.max(4, Math.round(dims.gridH * 0.34)) + '", [CLICK HERE] button right.' : "Foreground, midground, and light.") + "\nOnly the <svg>.";
+      var userPixel = era.year + " pixel " + roleNoun + ". " + promptText + "\n" + timelineProfile.imageDirective + '\nOpen with <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dims.gridW + " " + dims.gridH + '" width="' + dims.width + '" height="' + dims.height + '" shape-rendering="crispEdges">.\nOnly integer <rect> on a ' + dims.gridW + "\xD7" + dims.gridH + " grid. No circle, ellipse, smooth path, or rx/ry.\n12\u201316 VGA colors, dithered ground, outlined subject, 1px highlights. Spoof brands only. Unnamed generic people. No real logos or public figures. " + (role === "ad" ? 'Bevel (light top/left, dark bottom/right), icon left, Courier headline font-size="' + Math.max(4, Math.round(dims.gridH * 0.34)) + '", [CLICK HERE] button right.' : role === "icon" ? "Single centered glyph on a flat single-color background. No text, no border, no bevel." : "Foreground, midground, and light.") + "\nOnly the <svg>.";
       return {
         styleMode: "pixel",
         dims,
@@ -4417,7 +4447,7 @@ var BrowserOfDreamsBundle = (() => {
       };
     }
     var sysSvg = "Output one era-faithful <svg>. No markdown.";
-    var userSvg = era.year + " vector " + (role === "ad" ? "web ad" : "editorial") + ". " + promptText + "\n" + timelineProfile.imageDirective + '\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dims.width + " " + dims.height + '" width="' + dims.width + '" height="' + dims.height + '">. defs gradients, layered path/polygon/rect/circle. Text stays inside the viewBox. Spoof brands only. Unnamed generic people. No real logos or public figures. ' + (role === "ad" ? "Logo, headline, subcopy, border, and a CLICK HERE / SHOP NOW / LEARN MORE button." : "Depth, light, and period detail.") + " Only the <svg>.";
+    var userSvg = era.year + " vector " + roleNoun + ". " + promptText + "\n" + timelineProfile.imageDirective + '\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dims.width + " " + dims.height + '" width="' + dims.width + '" height="' + dims.height + '">. defs gradients, layered path/polygon/rect/circle. Text stays inside the viewBox. Spoof brands only. Unnamed generic people. No real logos or public figures. ' + (role === "ad" ? "Logo, headline, subcopy, border, and a CLICK HERE / SHOP NOW / LEARN MORE button." : role === "icon" ? "Single centered glyph, flat fills, no text, transparent background." : "Depth, light, and period detail.") + " Only the <svg>.";
     return {
       styleMode: "svg",
       dims,
@@ -5243,6 +5273,11 @@ var BrowserOfDreamsBundle = (() => {
     var safePrompt = String(o.prompt || (role === "ad" ? "Sponsored Banner" : "Dream Graphic")).replace(/[<>&"']/g, " ").replace(/\s+/g, " ").trim();
     var shortTitle = safePrompt.substring(0, 34);
     var subTitle = safePrompt.substring(34, 72);
+    if (role === "icon") {
+      var iw = parseInt(dims.width, 10) || 32;
+      var ih = parseInt(dims.height, 10) || 32;
+      return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="' + iw + '" height="' + ih + '"><rect x="6" y="6" width="20" height="20" rx="5" fill="#334155"/><circle cx="16" cy="16" r="5" fill="#e2e8f0"/></svg>';
+    }
     if (styleMode === "pixel") {
       var gw = dims.gridW;
       var gh = dims.gridH;
@@ -5446,6 +5481,12 @@ var BrowserOfDreamsBundle = (() => {
   };
 
   // src/features/images.js
+  function resolveSlotImageEngine(settings, slot) {
+    var engine = settings && settings.imageEngine || "image-model";
+    if (engine !== "hybrid") return engine;
+    var role = String(slot && slot.role || "photo").toLowerCase();
+    return role === "ad" || role === "icon" ? "text-svg" : "image-model";
+  }
   function resolveActiveTextArtModel(settings, imgProvider) {
     var s = settings || state.settings;
     if (imgProvider === "commandcode") {
@@ -5524,7 +5565,7 @@ var BrowserOfDreamsBundle = (() => {
     };
     img.src = dataUrl;
   }
-  function patchCachedHtmlWithImage(targetUrl, targetDate, slotId, dataUrl, prompt) {
+  function patchCachedHtmlWithImage(targetUrl, targetDate, slotId, dataUrl, prompt, engine) {
     var url = targetUrl || getCurrentEntry2() && getCurrentEntry2().url || state.currentNavigationUrl;
     var dateStr = targetDate || getCurrentEntry2() && getCurrentEntry2().date || state.currentNavigationDate;
     if (!url || !slotId) return;
@@ -5536,6 +5577,7 @@ var BrowserOfDreamsBundle = (() => {
         prompt: prompt || "",
         url,
         date: dateStr,
+        engine: String(engine || ""),
         timestamp: Date.now()
       };
       savePageCache(state.pageCache);
@@ -5546,7 +5588,7 @@ var BrowserOfDreamsBundle = (() => {
     var targetUrl = slot.targetUrl || state.currentNavigationUrl || getCurrentEntry2() && getCurrentEntry2().url;
     var targetDate = dateStr || slot.targetDate || state.currentNavigationDate || getCurrentEntry2() && getCurrentEntry2().date;
     var reqEpoch = slot.epoch !== void 0 ? slot.epoch : state.navigationEpoch;
-    var activeEngine = settings.imageEngine || "image-model";
+    var activeEngine = resolveSlotImageEngine(settings, slot);
     var imgProvider = getEffectiveImageProvider(settings, settings.imageProvider, settings.pageProvider, activeEngine);
     if (!hasValidCredentials(settings, imgProvider)) {
       if (targetUrl === state.currentNavigationUrl) {
@@ -5574,14 +5616,14 @@ var BrowserOfDreamsBundle = (() => {
     if (!basePrompt.includes(formattedDateUs)) {
       basePrompt = dateTag + " " + basePrompt;
     }
-    var fullPrompt = basePrompt + " " + era.year + " " + (slot.role === "ad" ? "web ad." : "editorial photo.") + " " + timelineProfile.imageDirective + " Spoof brands only. Unnamed generic people. No real logos or public figures.";
+    var fullPrompt = basePrompt + " " + era.year + " " + (slot.role === "ad" ? "web ad." : slot.role === "icon" ? "icon." : "editorial photo.") + " " + timelineProfile.imageDirective + " Spoof brands only. Unnamed generic people. No real logos or public figures.";
     var promptCacheKey = imgProvider + "__" + activeEngine + "__" + activeModelId + "__" + timelineProfile.tierKey + "__" + fullPrompt;
     if (slot.forceRegenerate) {
       delete state.imageMemoryCache[promptCacheKey];
     }
     if (!slot.forceRegenerate && state.imageMemoryCache[promptCacheKey]) {
       var cachedData = state.imageMemoryCache[promptCacheKey];
-      patchCachedHtmlWithImage(targetUrl, targetDate, slot.slotId, cachedData, slot.prompt);
+      patchCachedHtmlWithImage(targetUrl, targetDate, slot.slotId, cachedData, slot.prompt, activeEngine);
       if (targetUrl === state.currentNavigationUrl) {
         postToIframe3({
           type: "DREAM_IMAGE_READY",
@@ -5613,7 +5655,7 @@ var BrowserOfDreamsBundle = (() => {
       var isCurrent = targetUrl === state.currentNavigationUrl;
       if (!err && dataUrl) {
         state.imageMemoryCache[promptCacheKey] = dataUrl;
-        patchCachedHtmlWithImage(targetUrl, targetDate, slot.slotId, dataUrl, slot.prompt);
+        patchCachedHtmlWithImage(targetUrl, targetDate, slot.slotId, dataUrl, slot.prompt, activeEngine);
         if (targetUrl) {
           saveDomainImage({
             domain: extractDomain(targetUrl),
@@ -5625,19 +5667,20 @@ var BrowserOfDreamsBundle = (() => {
             aspectRatio: slot.aspectRatio,
             prompt: slot.prompt,
             alt: slot.alt,
+            engine: activeEngine,
             dataUrl
           });
         }
         if (Array.isArray(state.activeImageSlots)) {
           for (var a = 0; a < state.activeImageSlots.length; a++) {
             var other = state.activeImageSlots[a];
-            if (other.slotId !== slot.slotId && !other.alreadyLoaded) {
+            if (other.slotId !== slot.slotId && !other.alreadyLoaded && resolveSlotImageEngine(settings, other) === activeEngine) {
               var matchPrompt = other.prompt && slot.prompt && other.prompt.trim() === slot.prompt.trim();
               var matchReuse = other.reuse && (other.reuse === slot.reuse || other.reuse === slot.prompt || other.reuse === slot.label);
               if (matchPrompt || matchReuse) {
                 other.alreadyLoaded = true;
                 other.inFlight = false;
-                patchCachedHtmlWithImage(targetUrl, targetDate, other.slotId, dataUrl, slot.prompt);
+                patchCachedHtmlWithImage(targetUrl, targetDate, other.slotId, dataUrl, slot.prompt, activeEngine);
                 if (isCurrent) {
                   postToIframe3({
                     type: "DREAM_IMAGE_READY",
@@ -5768,7 +5811,11 @@ var BrowserOfDreamsBundle = (() => {
             var cachedUrl = typeof cached === "object" ? cached.url || "" : "";
             var hasPromptConflict = cachedPrompt && sl.prompt && cachedPrompt.trim() !== sl.prompt.trim();
             var hasUrlConflict = cachedUrl && targetUrl && cachedUrl.toLowerCase() !== targetUrl.toLowerCase();
-            if (hasPromptConflict || hasUrlConflict) {
+            var hasEngineConflict = !isImageCacheEngineCompatible({
+              dataUrl: cachedDataUrl,
+              engine: typeof cached === "object" ? cached.engine : ""
+            }, resolveSlotImageEngine(state.settings, sl));
+            if (hasPromptConflict || hasUrlConflict || hasEngineConflict) {
               delete savedSlots[sl.slotId];
               continue;
             }
@@ -5789,10 +5836,16 @@ var BrowserOfDreamsBundle = (() => {
         for (var d = 0; d < addedSlots.length; d++) {
           var dSlot = addedSlots[d];
           if (!dSlot.alreadyLoaded) {
-            var matchedDomainImg = findMatchingDomainImage(domain, targetDate, divergence, dSlot);
+            var slotEngine = resolveSlotImageEngine(state.settings, dSlot);
+            var matchedDomainImg = findMatchingDomainImage(
+              domain,
+              targetDate,
+              divergence,
+              Object.assign({}, dSlot, { engine: slotEngine })
+            );
             if (matchedDomainImg && matchedDomainImg.dataUrl) {
               dSlot.alreadyLoaded = true;
-              patchCachedHtmlWithImage(targetUrl, targetDate, dSlot.slotId, matchedDomainImg.dataUrl, matchedDomainImg.prompt || dSlot.prompt);
+              patchCachedHtmlWithImage(targetUrl, targetDate, dSlot.slotId, matchedDomainImg.dataUrl, matchedDomainImg.prompt || dSlot.prompt, slotEngine);
               postToIframe3({
                 type: "DREAM_IMAGE_READY",
                 slotId: dSlot.slotId,
@@ -5833,7 +5886,7 @@ var BrowserOfDreamsBundle = (() => {
     var newlyEligible = addedSlots.filter(function(slot) {
       if (slot.alreadyLoaded || slot.inFlight) return false;
       if (mode === "ads") return slot.role === "ad";
-      if (mode === "photos") return slot.role !== "ad";
+      if (mode === "photos") return slot.role === "photo";
       return true;
     });
     var toGenerate = newlyEligible.slice(0, remainingSlotsToStart);
@@ -5909,6 +5962,9 @@ var BrowserOfDreamsBundle = (() => {
         imgSummary = ", Images: <code>\u2728 Text Vector SVG (" + resolveActiveTextArtModel(settings, effImg) + ")</code>";
       } else if (settings.imageEngine === "text-auto") {
         imgSummary = ", Images: <code>\u{1F570}\uFE0F Era Text Art (" + resolveActiveTextArtModel(settings, effImg) + ")</code>";
+      } else if (settings.imageEngine === "hybrid") {
+        var hybridImageReady = !!(settings.imageProvider && isRasterProvider(settings.imageProvider) && hasValidCredentials(settings, settings.imageProvider));
+        imgSummary = ", Images: <code>\u2728 Ads/Icons: SVG (" + resolveActiveTextArtModel(settings, settings.pageProvider) + ")</code>" + (hybridImageReady ? " \xB7 \u{1F5BC}\uFE0F Photos: <code>" + settings.imageModel + "</code>" : " \xB7 Photos: save an image provider in Settings");
       } else if (!settings.imageProvider || !isRasterProvider(settings.imageProvider) || !hasValidCredentials(settings, settings.imageProvider)) {
         imgSummary = ", Images: save an image provider in Settings";
       } else {
@@ -6339,7 +6395,7 @@ var BrowserOfDreamsBundle = (() => {
   }
 
   // build-stamp:build-stamp
-  var BUILD_TIME = "2026-10-31T21:39:10.654Z";
+  var BUILD_TIME = "2026-10-31T22:20:26.749Z";
 
   // src/ui/settings-modal.js
   var OTHER = "__other__";
@@ -6553,6 +6609,8 @@ var BrowserOfDreamsBundle = (() => {
       els.imageEngineHint.textContent = "Vector art is drawn by the text model. The Image pair stays hidden.";
     } else if (engine === "text-auto") {
       els.imageEngineHint.textContent = "Era-adaptive art is drawn by the text model. The Image pair stays hidden.";
+    } else if (engine === "hybrid") {
+      els.imageEngineHint.textContent = "Ads and icons are drawn as vector SVG by the text model. Hero and article photos use the Image provider and model below.";
     } else {
       els.imageEngineHint.textContent = "Raster photos and ads use the Image provider and model in the bar below.";
     }

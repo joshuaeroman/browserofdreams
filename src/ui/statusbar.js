@@ -64,6 +64,12 @@ export function updateProviderStatusUI() {
       imgSummary = ", Images: <code>✨ Text Vector SVG (" + resolveActiveTextArtModel(settings, effImg) + ")</code>";
     } else if (settings.imageEngine === "text-auto") {
       imgSummary = ", Images: <code>🕰️ Era Text Art (" + resolveActiveTextArtModel(settings, effImg) + ")</code>";
+    } else if (settings.imageEngine === "hybrid") {
+      var hybridImageReady = !!(settings.imageProvider && isRasterProvider(settings.imageProvider) && hasValidCredentials(settings, settings.imageProvider));
+      imgSummary = ", Images: <code>✨ Ads/Icons: SVG (" + resolveActiveTextArtModel(settings, settings.pageProvider) + ")</code>" +
+        (hybridImageReady
+          ? " · 🖼️ Photos: <code>" + settings.imageModel + "</code>"
+          : " · Photos: save an image provider in Settings");
     } else if (!settings.imageProvider || !isRasterProvider(settings.imageProvider) || !hasValidCredentials(settings, settings.imageProvider)) {
       imgSummary = ", Images: save an image provider in Settings";
     } else {

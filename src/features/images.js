@@ -1,5 +1,5 @@
 import { state } from "../core/state.js";
-import { makeCacheKey, savePageCache, saveDomainImage, findMatchingDomainImage } from "../core/cache.js";
+import { makeCacheKey, savePageCache, saveDomainImage, findMatchingDomainImage, isImageCacheEngineCompatible } from "../core/cache.js";
 import { getCurrentEntry } from "../core/history.js";
 import { extractDomain } from "../core/urls.js";
 import { getEraInfo } from "../core/era.js";
@@ -10,6 +10,18 @@ import { getEffectiveImageProvider, hasValidCredentials, resolveConfig } from ".
 import { TextArtGenerator } from "./text-art.js";
 import { GeminiAdapter } from "../providers/gemini/index.js";
 import { OpenRouterAdapter } from "../providers/openrouter/index.js";
+
+/**
+ * Resolves the render engine for one image slot. The "hybrid" engine draws ads
+ * and icons with the text model as vector SVG and hero/article photos with the
+ * image model.
+ */
+export function resolveSlotImageEngine(settings, slot) {
+  var engine = (settings && settings.imageEngine) || "image-model";
+  if (engine !== "hybrid") return engine;
+  var role = String((slot && slot.role) || "photo").toLowerCase();
+  return role === "ad" || role === "icon" ? "text-svg" : "image-model";
+}
 
 export function resolveActiveTextArtModel(settings, imgProvider) {
   var s = settings || state.settings;
@@ -102,7 +114,7 @@ export function downscaleImageToSlot(dataUrl, targetWidth, targetHeight, callbac
   img.src = dataUrl;
 }
 
-export function patchCachedHtmlWithImage(targetUrl, targetDate, slotId, dataUrl, prompt) {
+export function patchCachedHtmlWithImage(targetUrl, targetDate, slotId, dataUrl, prompt, engine) {
   var url = targetUrl || (getCurrentEntry() && getCurrentEntry().url) || state.currentNavigationUrl;
   var dateStr = targetDate || (getCurrentEntry() && getCurrentEntry().date) || state.currentNavigationDate;
   if (!url || !slotId) return;
@@ -115,6 +127,7 @@ export function patchCachedHtmlWithImage(targetUrl, targetDate, slotId, dataUrl,
       prompt: prompt || "",
       url: url,
       date: dateStr,
+      engine: String(engine || ""),
       timestamp: Date.now()
     };
     savePageCache(state.pageCache);
@@ -127,7 +140,7 @@ export function generateSingleSlotImage(slot, dateStr, postToIframe, onDone) {
   var targetDate = dateStr || slot.targetDate || state.currentNavigationDate || (getCurrentEntry() && getCurrentEntry().date);
   var reqEpoch = slot.epoch !== undefined ? slot.epoch : state.navigationEpoch;
 
-  var activeEngine = settings.imageEngine || "image-model";
+  var activeEngine = resolveSlotImageEngine(settings, slot);
   var imgProvider = getEffectiveImageProvider(settings, settings.imageProvider, settings.pageProvider, activeEngine);
   if (!hasValidCredentials(settings, imgProvider)) {
     if (targetUrl === state.currentNavigationUrl) {
@@ -162,7 +175,7 @@ export function generateSingleSlotImage(slot, dateStr, postToIframe, onDone) {
   }
 
   var fullPrompt = basePrompt + " " + era.year + " " +
-    (slot.role === "ad" ? "web ad." : "editorial photo.") + " " +
+    (slot.role === "ad" ? "web ad." : (slot.role === "icon" ? "icon." : "editorial photo.")) + " " +
     timelineProfile.imageDirective +
     " Spoof brands only. Unnamed generic people. No real logos or public figures.";
   var promptCacheKey = imgProvider + "__" + activeEngine + "__" + activeModelId + "__" + timelineProfile.tierKey + "__" + fullPrompt;
@@ -173,7 +186,7 @@ export function generateSingleSlotImage(slot, dateStr, postToIframe, onDone) {
 
   if (!slot.forceRegenerate && state.imageMemoryCache[promptCacheKey]) {
     var cachedData = state.imageMemoryCache[promptCacheKey];
-    patchCachedHtmlWithImage(targetUrl, targetDate, slot.slotId, cachedData, slot.prompt);
+    patchCachedHtmlWithImage(targetUrl, targetDate, slot.slotId, cachedData, slot.prompt, activeEngine);
     if (targetUrl === state.currentNavigationUrl) {
       postToIframe({
         type: "DREAM_IMAGE_READY",
@@ -211,7 +224,7 @@ export function generateSingleSlotImage(slot, dateStr, postToIframe, onDone) {
 
     if (!err && dataUrl) {
       state.imageMemoryCache[promptCacheKey] = dataUrl;
-      patchCachedHtmlWithImage(targetUrl, targetDate, slot.slotId, dataUrl, slot.prompt);
+      patchCachedHtmlWithImage(targetUrl, targetDate, slot.slotId, dataUrl, slot.prompt, activeEngine);
       if (targetUrl) {
         saveDomainImage({
           domain: extractDomain(targetUrl),
@@ -223,6 +236,7 @@ export function generateSingleSlotImage(slot, dateStr, postToIframe, onDone) {
           aspectRatio: slot.aspectRatio,
           prompt: slot.prompt,
           alt: slot.alt,
+          engine: activeEngine,
           dataUrl: dataUrl
         });
       }
@@ -231,13 +245,14 @@ export function generateSingleSlotImage(slot, dateStr, postToIframe, onDone) {
       if (Array.isArray(state.activeImageSlots)) {
         for (var a = 0; a < state.activeImageSlots.length; a++) {
           var other = state.activeImageSlots[a];
-          if (other.slotId !== slot.slotId && !other.alreadyLoaded) {
+          if (other.slotId !== slot.slotId && !other.alreadyLoaded &&
+              resolveSlotImageEngine(settings, other) === activeEngine) {
             var matchPrompt = other.prompt && slot.prompt && other.prompt.trim() === slot.prompt.trim();
             var matchReuse = other.reuse && (other.reuse === slot.reuse || other.reuse === slot.prompt || other.reuse === slot.label);
             if (matchPrompt || matchReuse) {
               other.alreadyLoaded = true;
               other.inFlight = false;
-              patchCachedHtmlWithImage(targetUrl, targetDate, other.slotId, dataUrl, slot.prompt);
+              patchCachedHtmlWithImage(targetUrl, targetDate, other.slotId, dataUrl, slot.prompt, activeEngine);
               if (isCurrent) {
                 postToIframe({
                   type: "DREAM_IMAGE_READY",
@@ -381,8 +396,12 @@ export function handleDiscoveredImages(slots, dateStr, postToIframe, onStatusUpd
           // Check if prompt or URL conflict (prevents cross-page image pollution)
           var hasPromptConflict = cachedPrompt && sl.prompt && cachedPrompt.trim() !== sl.prompt.trim();
           var hasUrlConflict = cachedUrl && targetUrl && cachedUrl.toLowerCase() !== targetUrl.toLowerCase();
+          var hasEngineConflict = !isImageCacheEngineCompatible({
+            dataUrl: cachedDataUrl,
+            engine: typeof cached === "object" ? cached.engine : ""
+          }, resolveSlotImageEngine(state.settings, sl));
 
-          if (hasPromptConflict || hasUrlConflict) {
+          if (hasPromptConflict || hasUrlConflict || hasEngineConflict) {
             delete savedSlots[sl.slotId];
             continue;
           }
@@ -406,10 +425,13 @@ export function handleDiscoveredImages(slots, dateStr, postToIframe, onStatusUpd
       for (var d = 0; d < addedSlots.length; d++) {
         var dSlot = addedSlots[d];
         if (!dSlot.alreadyLoaded) {
-          var matchedDomainImg = findMatchingDomainImage(domain, targetDate, divergence, dSlot);
+          var slotEngine = resolveSlotImageEngine(state.settings, dSlot);
+          var matchedDomainImg = findMatchingDomainImage(
+            domain, targetDate, divergence, Object.assign({}, dSlot, { engine: slotEngine })
+          );
           if (matchedDomainImg && matchedDomainImg.dataUrl) {
             dSlot.alreadyLoaded = true;
-            patchCachedHtmlWithImage(targetUrl, targetDate, dSlot.slotId, matchedDomainImg.dataUrl, matchedDomainImg.prompt || dSlot.prompt);
+            patchCachedHtmlWithImage(targetUrl, targetDate, dSlot.slotId, matchedDomainImg.dataUrl, matchedDomainImg.prompt || dSlot.prompt, slotEngine);
             postToIframe({
               type: "DREAM_IMAGE_READY",
               slotId: dSlot.slotId,
@@ -451,7 +473,7 @@ export function handleDiscoveredImages(slots, dateStr, postToIframe, onStatusUpd
   var newlyEligible = addedSlots.filter(function(slot) {
     if (slot.alreadyLoaded || slot.inFlight) return false;
     if (mode === "ads") return slot.role === "ad";
-    if (mode === "photos") return slot.role !== "ad";
+    if (mode === "photos") return slot.role === "photo";
     return true;
   });
 

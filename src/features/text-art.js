@@ -62,6 +62,14 @@ export function buildFallbackArtSvg(opts) {
   var shortTitle = safePrompt.substring(0, 34);
   var subTitle = safePrompt.substring(34, 72);
 
+  if (role === "icon") {
+    var iw = parseInt(dims.width, 10) || 32;
+    var ih = parseInt(dims.height, 10) || 32;
+    return "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" width=\"" + iw + "\" height=\"" + ih + "\">" +
+      "<rect x=\"6\" y=\"6\" width=\"20\" height=\"20\" rx=\"5\" fill=\"#334155\"/>" +
+      "<circle cx=\"16\" cy=\"16\" r=\"5\" fill=\"#e2e8f0\"/></svg>";
+  }
+
   if (styleMode === "pixel") {
     var gw = dims.gridW;
     var gh = dims.gridH;
