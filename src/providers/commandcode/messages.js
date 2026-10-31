@@ -1,5 +1,5 @@
 import { commandCodeUrl, formatCommandCodeHttpError, isRetryableFieldError } from "./route.js";
-import { readDataLines } from "./sse.js";
+import { readDataLines } from "../sse.js";
 
 // Anthropic Messages (/messages) for Claude models. Command Code authenticates
 // with `Authorization: Bearer` and does not require `anthropic-version`; sending

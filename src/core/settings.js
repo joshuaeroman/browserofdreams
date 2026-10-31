@@ -44,6 +44,13 @@ export const PROVIDER_CATALOG = [
     name: "OpenRouter",
     raster: true,
     defaultEndpoint: "https://openrouter.ai/api/v1"
+  },
+  {
+    id: "local",
+    name: "Local LLM (OpenAI-compatible)",
+    raster: false,
+    keyless: true,
+    defaultEndpoint: "http://localhost:11434/v1"
   }
 ];
 
@@ -94,6 +101,9 @@ export function emptyAccounts() {
       account.homepageReasoningEffort = "off";
     } else if (provider.id === "opencode-zen" || provider.id === "opencode-go") {
       account.endpoint = provider.defaultEndpoint;
+    } else if (provider.id === "local") {
+      account.endpoint = provider.defaultEndpoint;
+      account.enabled = false;
     }
     accounts[provider.id] = account;
   }
@@ -180,7 +190,8 @@ export function migrateSettings(raw) {
   if (!imageProvider || imageProvider === "same") {
     imageProvider = isRasterProvider(next.pageProvider) ? next.pageProvider : "";
   }
-  if ((next.imageEngine || "image-model") === "image-model" && imageProvider && !isRasterProvider(imageProvider)) {
+  var engine = next.imageEngine || "image-model";
+  if ((engine === "image-model" || engine === "hybrid") && imageProvider && !isRasterProvider(imageProvider)) {
     imageProvider = isRasterProvider(next.pageProvider) ? next.pageProvider : "";
   }
   next.imageProvider = imageProvider;
@@ -218,6 +229,7 @@ export const DEFAULT_SETTINGS = {
     opencodeZenChat: [],
     opencodeGoChat: [],
     commandcodeChat: [],
+    localChat: [],
     orChat: [],
     orImage: []
   }

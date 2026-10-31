@@ -3,6 +3,7 @@ import { getEraInfo } from "../core/era.js";
 import { isTextArtEngine } from "../providers/adapter.js";
 import { OpenRouterAdapter } from "../providers/openrouter/index.js";
 import { CommandCodeAdapter } from "../providers/commandcode/index.js";
+import { LocalAdapter } from "../providers/local/index.js";
 import { OpenCodeAdapter } from "../providers/opencode/index.js";
 import { GeminiAdapter } from "../providers/gemini/index.js";
 
@@ -60,6 +61,14 @@ export function buildFallbackArtSvg(opts) {
     .trim();
   var shortTitle = safePrompt.substring(0, 34);
   var subTitle = safePrompt.substring(34, 72);
+
+  if (role === "icon") {
+    var iw = parseInt(dims.width, 10) || 32;
+    var ih = parseInt(dims.height, 10) || 32;
+    return "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" width=\"" + iw + "\" height=\"" + ih + "\">" +
+      "<rect x=\"6\" y=\"6\" width=\"20\" height=\"20\" rx=\"5\" fill=\"#334155\"/>" +
+      "<circle cx=\"16\" cy=\"16\" r=\"5\" fill=\"#e2e8f0\"/></svg>";
+  }
 
   if (styleMode === "pixel") {
     var gw = dims.gridW;
@@ -226,6 +235,19 @@ export function generateTextModelArt(opts, callback) {
       styleMode: styleMode
     });
     callback(null, built.dataUrl, built);
+  }
+
+  if (provider === "local") {
+    return LocalAdapter.sendStreaming({
+      endpoint: o.endpoint,
+      apiKey: (o.localApiKey || o.apiKey || "").trim(),
+      model: model || "",
+      temperature: 0.65,
+      maxTokens: 8192,
+      messages: messages,
+      onChunk: o.onChunk || function() {},
+      onComplete: onDone
+    });
   }
 
   if (provider === "openrouter") {

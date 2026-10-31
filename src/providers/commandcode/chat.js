@@ -1,5 +1,5 @@
 import { commandCodeUrl, formatCommandCodeHttpError, isRetryableFieldError } from "./route.js";
-import { readDataLines } from "./sse.js";
+import { readDataLines } from "../sse.js";
 
 // OpenAI Chat Completions (/chat/completions). No output-token cap is sent:
 // OpenAI reasoning models on this proxy reject the legacy `max_tokens` field,

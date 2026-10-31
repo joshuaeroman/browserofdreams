@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="alternate icon" type="image/png" href="icons/favicon-32.png" />
-  <link rel="stylesheet" href="dist/app.css?v=2" />
-  <script src="dist/app.js?v=2" defer></script>
+  <link rel="stylesheet" href="dist/app.css?v=4" />
+  <script src="dist/app.js?v=4" defer></script>
 </head>
 <body>
   <div id="browser-window" class="browser-window">
@@ -146,7 +146,7 @@
               <strong>Google AI Studio</strong>, or <strong>OpenRouter</strong> to start dreaming pages.
             </div>
             <button type="button" id="home-open-settings-btn" class="home-cta-btn">
-              ⚙ Configure Provider &amp; API Key
+              ⚙ Configure Provider
             </button>
           </div>
         </div>
@@ -316,6 +316,7 @@
             <div class="form-row" id="edit-endpoint-row" hidden>
               <label for="edit-endpoint">Endpoint:</label>
               <input type="text" id="edit-endpoint" class="settings-input" />
+              <div class="field-help" id="edit-endpoint-help" hidden></div>
             </div>
             <div class="form-row" id="edit-thinking-row" hidden>
               <label for="edit-thinking-budget">Thinking Token Budget:</label>
@@ -351,8 +352,8 @@
               <button type="button" id="provider-edit-fetch" class="small-btn">Fetch models</button>
               <button type="button" id="provider-edit-close" class="small-btn">Close</button>
             </div>
-            <div id="provider-edit-status" class="field-help"></div>
           </div>
+          <div id="provider-edit-status" class="field-help"></div>
         </div>
 
         <div class="settings-section">
@@ -378,9 +379,9 @@
             <div>
               <label for="image-mode-select">Image Generation Mode:</label>
               <select id="image-mode-select" class="settings-input">
-                <option value="all">All Images (Banner Ads + Editorial Photos)</option>
+                <option value="all">All Images (Banner Ads + Editorial Photos + Icons)</option>
                 <option value="ads">Advertisements Only (data-dream-role="ad")</option>
-                <option value="photos">Editorial / Page Photos Only</option>
+                <option value="photos">Editorial / Page Photos Only (no ads or icons)</option>
                 <option value="ondemand">On-Demand Only (Click image slot to generate)</option>
                 <option value="off">Off (Fastest — Inline SVG / Retro Placeholders)</option>
               </select>
@@ -389,6 +390,7 @@
               <label for="image-engine-select">Image Render Engine / Style:</label>
               <select id="image-engine-select" class="settings-input">
                 <option value="image-model">🖼️ Dedicated Image Model (Raster Photo/Ad)</option>
+                <option value="hybrid">🎨 Hybrid — Text SVG Ads &amp; Icons + Image Model Photos</option>
                 <option value="text-pixel">👾 Text Model → Retro Pixel Art</option>
                 <option value="text-svg">✨ Text Model → Vector SVG Art</option>
                 <option value="text-auto">🕰️ Text Model → Era-Adaptive (Pixel ≤1999, SVG ≥2000)</option>
@@ -400,7 +402,7 @@
             <label for="max-images-slider">Max Auto-Generated Images per Page (<span id="max-images-label">12</span>):</label>
             <input type="range" id="max-images-slider" min="1" max="12" step="1" value="12" />
             <div class="field-help">
-              Pixel, SVG, and era-adaptive art use the text provider and model. A dedicated image model uses the Image pair in the bar below.
+              Pixel, SVG, era-adaptive, and hybrid ad/icon art use the text provider and model. A dedicated image model and hybrid photos use the Image pair in the bar below.
             </div>
           </div>
           <div class="form-row">

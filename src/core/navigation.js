@@ -9,6 +9,7 @@ import { getTimelineDivergenceProfile } from "./timeline.js";
 import { buildDreamPrompt } from "../prompts/dream-prompt.js";
 import { injectBridgeScript, ensureBridgeInDocument, bridgeCss, bridgeRuntimeJs } from "../bridge/inject.js";
 import { getProvider, hasValidCredentials, resolveConfig } from "../providers/registry.js";
+import { providerById } from "./settings.js";
 import { getCachedMemesForDate, fetchDayMemesFromModel } from "../features/memes.js";
 import { handleDiscoveredImages } from "../features/images.js";
 import { setStatusText, setStatusImages, setStatusProgress, updateMemeStatusUI } from "../ui/statusbar.js";
@@ -79,7 +80,7 @@ export function renderEraErrorPage(normalizedUrl, dateStr, errorMessage) {
     "<p>The server at <strong>" + normalizedUrl + "</strong> on <strong>" + era.formattedLong + "</strong> could not be reached.</p>" +
     "<div class=\"box\">" + escapedErr + "</div>" +
     "<p>Please try the following:</p>" +
-    "<ul><li>Click the <strong>⚙ Settings</strong> button in the browser toolbar to verify your API key and selected model.</li>" +
+    "<ul><li>Click the <strong>⚙ Settings</strong> button in the browser toolbar to verify your provider settings and selected model.</li>" +
     "<li>Click <strong>Reload</strong> to try dreaming the page again.</li></ul>" +
     "</body></html>";
 
@@ -151,7 +152,10 @@ export function navigateToDream(rawUrl, dateStr, options) {
 
   if (!hasValidCredentials(state.settings, state.settings.pageProvider)) {
     openSettingsModal();
-    setStatusText("Please configure your API key in Settings to dream webpages.");
+    var pageProviderInfo = providerById(state.settings.pageProvider);
+    setStatusText(pageProviderInfo && pageProviderInfo.keyless
+      ? "Please configure your local endpoint in Settings to dream webpages."
+      : "Please configure your API key in Settings to dream webpages.");
     return;
   }
 

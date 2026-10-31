@@ -123,6 +123,7 @@ export function initDOM() {
   els.editLocation = document.getElementById("edit-location");
   els.editEndpointRow = document.getElementById("edit-endpoint-row");
   els.editEndpoint = document.getElementById("edit-endpoint");
+  els.editEndpointHelp = document.getElementById("edit-endpoint-help");
   els.editThinkingRow = document.getElementById("edit-thinking-row");
   els.editThinkingBudget = document.getElementById("edit-thinking-budget");
   els.editReasoningRow = document.getElementById("edit-reasoning-row");

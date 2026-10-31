@@ -51,9 +51,11 @@ export function buildDreamPrompt(params) {
   var imageRules = imageMode === "off"
     ? "Visuals: inline SVG, CSS, or ASCII. No data-dream-prompt images. Spoof marks and unnamed figures only."
     : "Images: 4–8 <img> (max 12). At least one " + era.year + " ad (468×60, 300×250, or 120×240/160×600) inside <a href>. Photos use data-dream-role=\"photo\".\n" +
+      "Up to 3 small interface icons use data-dream-role=\"icon\", width=\"32\" height=\"32\", data-dream-aspect=\"1:1\".\n" +
       "Article text may name real people and companies. data-dream-prompt may not: spoof brands only, and people only as generic roles (a reporter, a crowd, an athlete). No real logos, celebrity names, or likenesses.\n" +
       "Every new image: data-dream-prompt=\"[Date: " + formattedDateUs + "] subject, " + era.year + " style\" plus data-dream-role, data-dream-aspect, width, height, alt.\n" +
       "data-dream-aspect is only 21:9, 16:9, 4:3, 1:1, 3:4, 9:16, 3:2, or 2:3. Example: <img data-dream-prompt=\"[Date: " + formattedDateUs + "] spoof-brand banner, unnamed shoppers\" data-dream-role=\"ad\" data-dream-aspect=\"21:9\" width=\"468\" height=\"60\" alt=\"...\">\n" +
+      "Icon example: <img data-dream-prompt=\"[Date: " + formattedDateUs + "] spoof-brand envelope icon, flat glyph\" data-dream-role=\"icon\" data-dream-aspect=\"1:1\" width=\"32\" height=\"32\" alt=\"Mail\">\n" +
       (availableImagesListText
         ? "Reuse a listed image with data-dream-reuse=\"[TYPE: Label, orientation, WxH]\" or its id. Example: <img data-dream-reuse=\"[AD: Snapple, vertical, 100x300]\" width=\"100\" height=\"300\" alt=\"Snapple\">. New slots still use data-dream-prompt."
         : "No cached images yet. Do not emit data-dream-reuse.");

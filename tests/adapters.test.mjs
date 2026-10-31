@@ -19,6 +19,7 @@ import {
 import { translateMessages as translateGeminiMessages } from "../src/providers/gemini/messages.js";
 import { translateResponsesMessages } from "../src/providers/opencode/protocols/responses.js";
 import { translateAnthropicMessages } from "../src/providers/opencode/protocols/anthropic.js";
+import { LocalAdapter, localUrl } from "../src/providers/local/index.js";
 
 function installRetryXHR(instances) {
   var prev = globalThis.XMLHttpRequest;
@@ -969,4 +970,162 @@ test("OpenRouter and OpenCode streamChat disable reasoning effort by default", (
 
   const ocChatCode = fs.readFileSync(path.resolve("src/providers/opencode/protocols/chat.js"), "utf8");
   assert.ok(ocChatCode.includes('reasoning_effort: "none"'), "OpenCode chat streaming must set reasoning_effort: 'none'");
+});
+
+test("Local LLM is a keyless OpenAI-compatible provider", () => {
+  var local = providerById("local");
+  assert.ok(local, "local must be in the provider catalog");
+  assert.equal(local.raster, false);
+  assert.equal(local.keyless, true);
+  assert.equal(local.defaultEndpoint, "http://localhost:11434/v1");
+  assert.deepEqual(emptyAccounts().local, {
+    apiKey: "",
+    endpoint: "http://localhost:11434/v1",
+    enabled: false
+  });
+  assert.equal(getProvider("local").id, "local");
+});
+
+test("normalizeLocalEndpoint repairs user-typed paths", () => {
+  assert.equal(LocalAdapter.normalizeEndpoint(""), "http://localhost:11434/v1");
+  assert.equal(LocalAdapter.normalizeEndpoint("localhost:8000"), "http://localhost:8000/v1");
+  assert.equal(LocalAdapter.normalizeEndpoint("192.168.1.5:8080/v1"), "http://192.168.1.5:8080/v1");
+  assert.equal(LocalAdapter.normalizeEndpoint("http://127.0.0.1:1234/v1/"), "http://127.0.0.1:1234/v1");
+  assert.equal(
+    LocalAdapter.normalizeEndpoint("http://localhost:11434/v1/chat/completions"),
+    "http://localhost:11434/v1"
+  );
+  assert.equal(localUrl("http://localhost:11434", "/models"), "http://localhost:11434/v1/models");
+  assert.equal(LocalAdapter.normalizeEndpoint("http://"), "http://localhost:11434/v1");
+  assert.equal(LocalAdapter.normalizeEndpoint("http:/localhost:11434/v1"), "http://localhost:11434/v1");
+  assert.equal(LocalAdapter.normalizeEndpoint("[::1]:11434"), "http://[::1]:11434/v1");
+});
+
+test("Local endpoint falls back when the URL cannot be parsed", () => {
+  assert.equal(LocalAdapter.normalizeEndpoint("localhost:abc"), "http://localhost:11434/v1");
+  assert.equal(LocalAdapter.normalizeEndpoint("localhost:99999"), "http://localhost:11434/v1");
+  assert.equal(LocalAdapter.normalizeEndpoint("http://host with space/v1"), "http://localhost:11434/v1");
+});
+
+test("Local timeout is reported as a timeout, not an unreachable server", () => {
+  var instances = [];
+  var restore = installRetryXHR(instances);
+  try {
+    var results = [];
+    LocalAdapter.sendStreaming({
+      endpoint: "http://localhost:11434/v1",
+      model: "llama3.2",
+      messages: [],
+      onComplete: function(value, err) {
+        results.push({ value: value, err: err });
+      }
+    });
+    var xhr = instances[0];
+    xhr.status = 0;
+    xhr.readyState = 4;
+    xhr.onreadystatechange();
+    assert.equal(results.length, 0, "status 0 must leave the report to ontimeout/onerror");
+    xhr.ontimeout();
+    assert.equal(results.length, 1);
+    assert.equal(results[0].err, "Local request timed out");
+  } finally {
+    restore();
+  }
+});
+
+test("Local streaming omits Authorization without a key", () => {
+  var instances = [];
+  var restore = installRetryXHR(instances);
+  try {
+    LocalAdapter.sendStreaming({
+      endpoint: "http://localhost:11434/v1",
+      model: "llama3.2",
+      messages: []
+    });
+    var keylessXhr = instances[0];
+    assert.equal(keylessXhr.method, "POST");
+    assert.equal(keylessXhr.url, "http://localhost:11434/v1/chat/completions");
+    assert.deepEqual(Object.keys(keylessXhr.headers), ["Content-Type"]);
+    assert.deepEqual(keylessXhr.bodies[0], {
+      model: "llama3.2",
+      stream: true,
+      temperature: 0.7,
+      messages: []
+    });
+    assert.equal(keylessXhr.bodies[0].reasoning_effort, undefined);
+
+    LocalAdapter.sendStreaming({
+      endpoint: "http://localhost:11434/v1",
+      apiKey: "k",
+      model: "llama3.2",
+      messages: []
+    });
+    var keyedXhr = instances[1];
+    assert.deepEqual(Object.keys(keyedXhr.headers).sort(), ["Authorization", "Content-Type"]);
+    assert.equal(keyedXhr.headers.Authorization, "Bearer k");
+  } finally {
+    restore();
+  }
+});
+
+test("Local streaming reports a missing model", () => {
+  var instances = [];
+  var restore = installRetryXHR(instances);
+  try {
+    var result = null;
+    LocalAdapter.sendStreaming({
+      endpoint: "http://localhost:11434/v1",
+      model: "",
+      messages: [],
+      onComplete: function(value, err) {
+        result = { value: value, err: err };
+      }
+    });
+    assert.equal(instances.length, 0, "no request is sent without a model");
+    assert.equal(result.value, "");
+    assert.match(result.err, /No local model selected/);
+  } finally {
+    restore();
+  }
+});
+
+test("Local model discovery parses data[].id", () => {
+  var instances = [];
+  var restore = installRetryXHR(instances);
+  try {
+    var calls = [];
+    LocalAdapter.fetchModels("http://localhost:11434/v1", "", function(err, models) {
+      calls.push({ err: err, models: models });
+    });
+    var xhr = instances[0];
+    assert.equal(xhr.method, "GET");
+    assert.equal(xhr.url, "http://localhost:11434/v1/models");
+    assert.deepEqual(Object.keys(xhr.headers), []);
+
+    xhr.status = 200;
+    xhr.responseText = JSON.stringify({ data: [{ id: "b" }, { id: "a" }, { id: "a" }] });
+    xhr.readyState = 4;
+    xhr.onreadystatechange();
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].err, null);
+    assert.deepEqual(calls[0].models, ["a", "b"]);
+  } finally {
+    restore();
+  }
+});
+
+test("resolveConfig exposes local endpoint and enabled flag", () => {
+  var enabled = migrateSettings({
+    accounts: { local: { apiKey: "", endpoint: "http://localhost:8000/v1", enabled: true } }
+  });
+  assert.equal(resolveConfig(enabled, "local").endpoint, "http://localhost:8000/v1");
+  assert.equal(resolveConfig(enabled, "local").localEnabled, true);
+  assert.equal(hasValidCredentials(enabled, "local"), true);
+
+  var disabled = migrateSettings({
+    accounts: { local: { apiKey: "", endpoint: "http://localhost:8000/v1", enabled: false } }
+  });
+  assert.equal(resolveConfig(disabled, "local").localEnabled, false);
+  assert.equal(hasValidCredentials(disabled, "local"), false);
 });

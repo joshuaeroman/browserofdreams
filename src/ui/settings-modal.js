@@ -9,6 +9,7 @@ import { OpenCodeAdapter, STATIC_OPENCODE_ZEN_MODELS, STATIC_OPENCODE_GO_MODELS 
 import { GeminiAdapter, AgentPlatform, STATIC_VERTEX_GEMINI_MODELS, STATIC_GEMINI_IMAGE_MODELS } from "../providers/gemini/index.js";
 import { OpenRouterAdapter, STATIC_OR_TEXT_MODELS, STATIC_OR_IMAGE_MODELS } from "../providers/openrouter/index.js";
 import { CommandCodeAdapter, STATIC_COMMANDCODE_MODELS } from "../providers/commandcode/index.js";
+import { LocalAdapter } from "../providers/local/index.js";
 import { isStandaloneMode, canPromptInstall, promptInstall, syncStandaloneDOM } from "../features/pwa.js";
 import { BUILD_TIME } from "build-stamp";
 
@@ -35,6 +36,12 @@ function maskKey(key) {
   return "••••" + tail;
 }
 
+function isAccountConfigured(provider, account) {
+  if (!provider || !account) return false;
+  if (provider.keyless) return !!account.enabled;
+  return !!String(account.apiKey || "").trim();
+}
+
 function setEditStatus(text) {
   if (els.providerEditStatus) els.providerEditStatus.textContent = text || "";
 }
@@ -57,6 +64,9 @@ export function getAvailableModelList(provider, isImage) {
   var cm = settings.cachedModels || {};
   var p = provider === "aistudio" ? "gemini" : provider;
 
+  if (p === "local") {
+    return (cm.localChat && cm.localChat.length > 0) ? cm.localChat.slice() : [];
+  }
   if (p === "openrouter") {
     if (isImage) {
       var orImgs = (cm.orImage && cm.orImage.length > 0) ? cm.orImage.slice() : STATIC_OR_IMAGE_MODELS.slice();
@@ -132,7 +142,9 @@ function applyCustomVisibility(selectEl, customEl, current) {
   if (!customEl) return;
   var show = !!(selectEl && selectEl.value === OTHER);
   customEl.hidden = !show;
-  if (show && current) customEl.value = current;
+  // Always assign while visible: a provider switch passes "", and leaving the
+  // previous provider's id in the box would leak it into the new provider.
+  if (show) customEl.value = current || "";
 }
 
 function readPickerModel(selectEl, customEl, providerId) {
@@ -145,6 +157,9 @@ function readPickerModel(selectEl, customEl, providerId) {
   }
   if (providerId === "commandcode") {
     value = CommandCodeAdapter.normalizeModelId(value, getAvailableModelList("commandcode", false));
+  }
+  if (providerId === "local") {
+    value = LocalAdapter.normalizeModelId(value);
   }
   return value;
 }
@@ -194,6 +209,12 @@ export function syncModelPickers() {
     if (resolvedText && resolvedText !== settings.pageModel) {
       settings.pageModel = resolvedText;
       changed = true;
+    } else if (!resolvedText && providerChanged && settings.pageModel) {
+      // Keyless/hosted providers can have no known models yet (Local LLM
+      // before a fetch). Clearing the id makes the provider report a missing
+      // model instead of sending the previous provider's model name.
+      settings.pageModel = "";
+      changed = true;
     }
   }
 
@@ -237,6 +258,8 @@ function syncImageEngineHint() {
     els.imageEngineHint.textContent = "Vector art is drawn by the text model. The Image pair stays hidden.";
   } else if (engine === "text-auto") {
     els.imageEngineHint.textContent = "Era-adaptive art is drawn by the text model. The Image pair stays hidden.";
+  } else if (engine === "hybrid") {
+    els.imageEngineHint.textContent = "Ads and icons are drawn as vector SVG by the text model. Hero and article photos use the Image provider and model below.";
   } else {
     els.imageEngineHint.textContent = "Raster photos and ads use the Image provider and model in the bar below.";
   }
@@ -251,6 +274,7 @@ function renderProviderList() {
     // Do not offer key entry for providers disabled in the catalog
     if (provider.disabled) continue;
     var account = draftAccounts[provider.id];
+    var configured = isAccountConfigured(provider, account);
     var row = document.createElement("li");
     row.className = "provider-account-row";
 
@@ -260,7 +284,9 @@ function renderProviderList() {
 
     var key = document.createElement("span");
     key.className = "provider-account-key";
-    key.textContent = maskKey(account && account.apiKey);
+    key.textContent = provider.keyless
+      ? (configured ? (account.endpoint || provider.defaultEndpoint) : "Not configured")
+      : maskKey(account && account.apiKey);
 
     var actions = document.createElement("span");
     actions.className = "provider-account-actions";
@@ -275,8 +301,8 @@ function renderProviderList() {
       actions.appendChild(button);
     }
 
-    addButton(account && account.apiKey ? "Edit" : "Save key", "edit");
-    if (account && account.apiKey) {
+    addButton(configured ? "Edit" : (provider.keyless ? "Save endpoint" : "Save key"), "edit");
+    if (configured) {
       addButton("Remove", "remove");
       addButton("Fetch models", "fetch");
     }
@@ -300,18 +326,36 @@ function openEditor(providerId) {
 
   var isAgent = providerId === "agentplatform";
   var isCommandCode = providerId === "commandcode";
+  var keyless = !!provider.keyless;
   var openCode = isOpenCodeProvider(providerId);
   if (els.editAuthRow) els.editAuthRow.hidden = !isAgent;
   if (els.editProjectRow) els.editProjectRow.hidden = !isAgent;
   if (els.editThinkingRow) els.editThinkingRow.hidden = !isAgent;
   if (els.editReasoningRow) els.editReasoningRow.hidden = !isCommandCode;
   if (els.editHomepageReasoningRow) els.editHomepageReasoningRow.hidden = !isCommandCode;
-  if (els.editEndpointRow) els.editEndpointRow.hidden = !(isAgent || openCode);
+  if (els.editEndpointRow) els.editEndpointRow.hidden = !(isAgent || openCode || keyless);
   if (els.providerCorsNotice) els.providerCorsNotice.hidden = !openCode;
-  if (els.editKeyLabel) els.editKeyLabel.textContent = isAgent ? "API Key or Access Token:" : "API Key:";
+  if (els.editKeyLabel) {
+    els.editKeyLabel.textContent = keyless
+      ? "API Key (optional):"
+      : (isAgent ? "API Key or Access Token:" : "API Key:");
+  }
   if (els.editApiKey) {
     els.editApiKey.value = account.apiKey || "";
     els.editApiKey.type = "password";
+    els.editApiKey.placeholder = keyless
+      ? "Optional — leave empty unless your server requires a key"
+      : "Paste API key";
+  }
+  if (els.providerEditSave) els.providerEditSave.textContent = keyless ? "Save endpoint" : "Save key";
+  if (els.editEndpointHelp) {
+    els.editEndpointHelp.hidden = !keyless;
+    if (keyless) {
+      els.editEndpointHelp.textContent =
+        "OpenAI-compatible base URL. Examples: http://localhost:11434/v1 (Ollama), " +
+        "http://localhost:1234/v1 (LM Studio), http://localhost:8080/v1 (llama.cpp). " +
+        "Trailing /v1 is added when omitted. The server must allow this page's origin — for Ollama set OLLAMA_ORIGINS.";
+    }
   }
   if (isAgent) {
     if (els.editAuthType) els.editAuthType.value = account.vertexAuthType || "apikey";
@@ -321,7 +365,7 @@ function openEditor(providerId) {
     if (els.editLocation) els.editLocation.value = account.location || "global";
     if (els.editEndpoint) els.editEndpoint.value = account.endpoint || provider.defaultEndpoint;
     if (els.editThinkingBudget) els.editThinkingBudget.value = account.thinkingBudget || 0;
-  } else if (openCode && els.editEndpoint) {
+  } else if ((openCode || keyless) && els.editEndpoint) {
     els.editEndpoint.value = account.endpoint || provider.defaultEndpoint;
   }
   if (isCommandCode && els.editReasoningEffort) {
@@ -346,6 +390,9 @@ function readEditorIntoDraft() {
     account.thinkingBudget = els.editThinkingBudget ? (parseInt(els.editThinkingBudget.value, 10) || 0) : account.thinkingBudget;
   } else if (isOpenCodeProvider(id) && els.editEndpoint) {
     account.endpoint = els.editEndpoint.value.trim() || provider.defaultEndpoint;
+  } else if (provider && provider.keyless) {
+    if (els.editEndpoint) account.endpoint = LocalAdapter.normalizeEndpoint(els.editEndpoint.value);
+    account.enabled = true;
   }
   if (id === "commandcode" && els.editReasoningEffort) {
     account.reasoningEffort = els.editReasoningEffort.value || "off";
@@ -378,10 +425,25 @@ function commitEditor(askCopy) {
 
 function removeProviderKey(providerId) {
   if (!draftAccounts || !draftAccounts[providerId]) return;
-  draftAccounts[providerId].apiKey = "";
-  if (editingProviderId === providerId && els.editApiKey) els.editApiKey.value = "";
+  var provider = providerById(providerId);
+  if (provider && provider.keyless) {
+    draftAccounts[providerId].enabled = false;
+    draftAccounts[providerId].endpoint = provider.defaultEndpoint;
+  } else {
+    draftAccounts[providerId].apiKey = "";
+  }
+  if (editingProviderId === providerId) {
+    // Drop the open editor so a later Save Settings cannot re-enable the
+    // account from the editor fields.
+    editingProviderId = "";
+    if (els.providerEditPanel) els.providerEditPanel.hidden = true;
+  }
   renderProviderList();
-  setEditStatus(providerById(providerId).name + " key removed. Choose Save Settings to keep this.");
+  if (provider && provider.keyless) {
+    setEditStatus(provider.name + " endpoint disabled. Choose Save Settings to keep this.");
+  } else {
+    setEditStatus(providerById(providerId).name + " key removed. Choose Save Settings to keep this.");
+  }
 }
 
 function cacheAndRefresh(note) {
@@ -396,13 +458,31 @@ function fetchEditingProvider() {
   readEditorIntoDraft();
   var id = editingProviderId;
   var account = draftAccounts[id];
+  var provider = providerById(id);
   var key = String(account.apiKey || "").trim();
-  if (!key) {
+  if (!key && !(provider && provider.keyless)) {
     setEditStatus("Paste a key before fetching models.");
     return;
   }
-  var provider = providerById(id);
+  if (provider && provider.keyless && !String(account.endpoint || "").trim()) {
+    setEditStatus("Enter an endpoint URL before fetching models.");
+    return;
+  }
   setEditStatus("Fetching " + provider.name + " models…");
+
+  if (id === "local") {
+    LocalAdapter.fetchModels(account.endpoint, key, function(err, models) {
+      if (err || !models) {
+        setEditStatus("⚠️ " + (err || "Failed to fetch models"));
+        return;
+      }
+      state.settings.cachedModels = state.settings.cachedModels || {};
+      var cached = models.slice(0, 200);
+      state.settings.cachedModels.localChat = cached;
+      cacheAndRefresh("✓ Loaded " + cached.length + " local model(s).");
+    });
+    return;
+  }
 
   if (id === "commandcode") {
     var ccEndpoint = account.endpoint || provider.defaultEndpoint;
@@ -493,6 +573,7 @@ export function openSettingsModal() {
   draftAccounts = cloneDraft(settings.accounts);
   editingProviderId = "";
   if (els.providerEditPanel) els.providerEditPanel.hidden = true;
+  setEditStatus("");
   renderProviderList();
 
   if (els.temperatureSlider) els.temperatureSlider.value = settings.temperature;
@@ -620,6 +701,12 @@ export function initSettingsModalEvents(onSettingsSaved) {
     els.providerEditSave.addEventListener("click", function() {
       commitEditor(true);
       var provider = providerById(editingProviderId);
+      if (provider && provider.keyless) {
+        setEditStatus(provider.name + " endpoint saved. Choose Save Settings to keep it.");
+        var cachedLocal = state.settings.cachedModels && state.settings.cachedModels.localChat;
+        if (!cachedLocal || cachedLocal.length === 0) fetchEditingProvider();
+        return;
+      }
       setEditStatus("Key saved for " + (provider ? provider.name : "provider") + ". Choose Save Settings to keep it.");
     });
   }

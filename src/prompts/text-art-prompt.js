@@ -11,9 +11,13 @@ export function resolveTextArtStyleMode(imageEngine, year) {
 
 export function computePixelGridDimensions(width, height, role, aspectRatio) {
   var r = String(role || "photo").toLowerCase();
-  var w = parseInt(width, 10) || (r === "ad" ? 468 : 360);
-  var h = parseInt(height, 10) || (r === "ad" ? 60 : 240);
+  var w = parseInt(width, 10) || (r === "ad" ? 468 : (r === "icon" ? 32 : 360));
+  var h = parseInt(height, 10) || (r === "ad" ? 60 : (r === "icon" ? 32 : 240));
   var ratio = w / Math.max(1, h);
+
+  if (r === "icon") {
+    return { width: w, height: h, gridW: 16, gridH: 16 };
+  }
 
   if (r === "ad" && ratio >= 2.4) {
     return {
@@ -51,21 +55,24 @@ export function buildTextArtPrompts(opts) {
   var timelineProfile = getTimelineDivergenceProfile(o.timelineDivergence, era.year);
   var styleMode = o.styleMode || resolveTextArtStyleMode(o.imageEngine || "text-pixel", era.year);
   var dims = computePixelGridDimensions(o.width, o.height, role, o.aspectRatio);
-  var promptText = String(o.prompt || (role === "ad" ? "Vintage web banner advertisement" : "Editorial illustration")).trim();
+  var roleNoun = role === "ad" ? "web ad" : (role === "icon" ? "icon" : "editorial");
+  var promptText = String(o.prompt || (role === "ad" ? "Vintage web banner advertisement" : (role === "icon" ? "Small interface icon glyph" : "Editorial illustration"))).trim();
 
   if (styleMode === "pixel") {
     var sysPixel =
       "Output one integer-grid pixel-art <svg>. No markdown.";
 
     var userPixel =
-      era.year + " pixel " + (role === "ad" ? "web ad" : "editorial") + ". " + promptText + "\n" +
+      era.year + " pixel " + roleNoun + ". " + promptText + "\n" +
       timelineProfile.imageDirective + "\n" +
       "Open with <svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 " + dims.gridW + " " + dims.gridH + "\" width=\"" + dims.width + "\" height=\"" + dims.height + "\" shape-rendering=\"crispEdges\">.\n" +
       "Only integer <rect> on a " + dims.gridW + "×" + dims.gridH + " grid. No circle, ellipse, smooth path, or rx/ry.\n" +
       "12–16 VGA colors, dithered ground, outlined subject, 1px highlights. Spoof brands only. Unnamed generic people. No real logos or public figures. " +
       (role === "ad"
         ? "Bevel (light top/left, dark bottom/right), icon left, Courier headline font-size=\"" + Math.max(4, Math.round(dims.gridH * 0.34)) + "\", [CLICK HERE] button right."
-        : "Foreground, midground, and light.") +
+        : (role === "icon"
+          ? "Single centered glyph on a flat single-color background. No text, no border, no bevel."
+          : "Foreground, midground, and light.")) +
       "\nOnly the <svg>.";
 
     return {
@@ -79,13 +86,15 @@ export function buildTextArtPrompts(opts) {
   var sysSvg = "Output one era-faithful <svg>. No markdown.";
 
   var userSvg =
-    era.year + " vector " + (role === "ad" ? "web ad" : "editorial") + ". " + promptText + "\n" +
+    era.year + " vector " + roleNoun + ". " + promptText + "\n" +
     timelineProfile.imageDirective + "\n" +
     "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 " + dims.width + " " + dims.height + "\" width=\"" + dims.width + "\" height=\"" + dims.height + "\">. " +
     "defs gradients, layered path/polygon/rect/circle. Text stays inside the viewBox. Spoof brands only. Unnamed generic people. No real logos or public figures. " +
     (role === "ad"
       ? "Logo, headline, subcopy, border, and a CLICK HERE / SHOP NOW / LEARN MORE button."
-      : "Depth, light, and period detail.") +
+      : (role === "icon"
+        ? "Single centered glyph, flat fills, no text, transparent background."
+        : "Depth, light, and period detail.")) +
     " Only the <svg>.";
 
   return {
