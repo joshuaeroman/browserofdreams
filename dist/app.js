@@ -6980,7 +6980,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
   }
 
   // build-stamp:build-stamp
-  var BUILD_TIME = "2026-11-01T03:56:20.262Z";
+  var BUILD_TIME = "2026-11-01T04:08:56.845Z";
 
   // src/ui/settings-modal.js
   var OTHER = "__other__";

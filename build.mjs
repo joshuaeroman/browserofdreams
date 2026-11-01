@@ -1,4 +1,5 @@
 import * as esbuild from "esbuild";
+import { formatShellVersion, stampShellVersion } from "./scripts/shell-version.mjs";
 
 const isWatch = process.argv.includes("--watch");
 
@@ -29,6 +30,22 @@ const buildOptions = {
             contents: "export var BUILD_TIME = " + JSON.stringify(new Date().toISOString()) + ";",
             loader: "js"
           };
+        });
+      }
+    },
+    {
+      name: "stamp-shell-version",
+      setup(build) {
+        build.onEnd(function(result) {
+          if (result.errors && result.errors.length > 0) return;
+          var version = formatShellVersion(new Date());
+          try {
+            var stamped = stampShellVersion({ version: version });
+            console.log("Shell version " + version + " (" + (stamped.changed.length ? "stamped " + stamped.changed.join(", ") : "unchanged") + ")");
+          } catch (e) {
+            console.error("Could not stamp the shell cache version:", e);
+            process.exitCode = 1;
+          }
         });
       }
     }

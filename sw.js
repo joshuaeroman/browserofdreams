@@ -4,13 +4,16 @@
  * External LLM and image provider API requests are strictly bypassed (never cached).
  */
 
-const CACHE_NAME = "dreams-pwa-v6";
+// `npm run build` rewrites the version below and the ?v= tags on the app
+// assets with the UTC build time (YYYYMMDDHHMMSS). Editing it by hand only
+// survives until the next build.
+const CACHE_NAME = "dreams-pwa-v20261101040856";
 
 const PRECACHE_ASSETS = [
   "./",
   "./index.html",
-  "./dist/app.js?v=6",
-  "./dist/app.css?v=6",
+  "./dist/app.js?v=20261101040856",
+  "./dist/app.css?v=20261101040856",
   "./manifest.webmanifest",
   "./icons/icon.svg",
   "./icons/icon-192.png",
