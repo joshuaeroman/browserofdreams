@@ -374,9 +374,9 @@
             <div>
               <label for="image-mode-select">Image Generation Mode:</label>
               <select id="image-mode-select" class="settings-input">
-                <option value="all">All Images (Banner Ads + Editorial Photos + Icons)</option>
+                <option value="all">All Images (Banner Ads + Editorial Photos + Icons + Graphics)</option>
                 <option value="ads">Advertisements Only (data-dream-role="ad")</option>
-                <option value="photos">Editorial / Page Photos Only (no ads or icons)</option>
+                <option value="photos">Editorial / Page Photos Only (no ads, icons, or graphics)</option>
                 <option value="ondemand">On-Demand Only (Click image slot to generate)</option>
                 <option value="off">Off (Fastest — Inline SVG / Retro Placeholders)</option>
               </select>
@@ -394,10 +394,10 @@
           </div>
           <div id="image-engine-hint" class="field-help"></div>
           <div class="form-row">
-            <label for="max-images-slider">Max Auto-Generated Images per Page (<span id="max-images-label">12</span>):</label>
+            <label for="max-images-slider">Max Image-Model Images per Page (<span id="max-images-label">12</span>):</label>
             <input type="range" id="max-images-slider" min="1" max="12" step="1" value="12" />
             <div class="field-help">
-              Pixel, SVG, era-adaptive, and hybrid ad/icon art use the text provider and model. A dedicated image model and hybrid photos use the Image pair in the bar below.
+              Only raster image-model slots count toward this cap; photos under the hybrid engine are the ones capped. Pixel, SVG, era-adaptive, and hybrid ad/icon/graphic art never count — they are unlimited. A dedicated image model and hybrid photos use the Image pair in the bar below.
             </div>
           </div>
           <div class="form-row">

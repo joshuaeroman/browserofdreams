@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { state } from "../src/core/state.js";
-import { loadPageCache, makeCacheKey } from "../src/core/cache.js";
+import { loadPageCache, makeCacheKey, saveDomainImage, getAvailableDomainImages, resetDomainImageCache, STORAGE_KEY_DOMAIN_IMAGES } from "../src/core/cache.js";
 import { patchCachedHtmlWithImage, handleDiscoveredImages, resolveActiveTextArtModel } from "../src/features/images.js";
 
 test("patchCachedHtmlWithImage preserves targetUrl and prompt metadata in slotImages", () => {
@@ -124,4 +124,35 @@ test("loadPageCache purges legacy unverified string slotImages", () => {
   }
 
   assert.equal(mockStorage["http://www.nycnews.com/__2001-09-11"].slotImages["dream-img-0"], undefined);
+});
+
+test("resetDomainImageCache clears stored and in-memory domain images", () => {
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k)
+  };
+  try {
+    saveDomainImage({
+      domain: "snapple.com", date: "1999-05-12", divergence: 0, role: "graphic",
+      width: 240, height: 180, prompt: "logo mark",
+      dataUrl: "data:image/svg+xml,%3Csvg%3E%3C/svg%3E", engine: "text-svg"
+    });
+    assert.equal(getAvailableDomainImages("snapple.com", "1999-05-12", 0).length, 1);
+
+    resetDomainImageCache();
+    assert.equal(getAvailableDomainImages("snapple.com", "1999-05-12", 0).length, 0, "in-memory entries must be dropped");
+    assert.equal(store.has(STORAGE_KEY_DOMAIN_IMAGES), false, "stored entries must be removed");
+
+    saveDomainImage({
+      domain: "snapple.com", date: "1999-05-12", divergence: 0, role: "photo",
+      width: 300, height: 200, prompt: "new photo",
+      dataUrl: "data:image/png;base64,new", engine: "image-model"
+    });
+    const persisted = JSON.parse(store.get(STORAGE_KEY_DOMAIN_IMAGES));
+    assert.equal(Object.values(persisted).flat().length, 1, "a later save must not resurrect cleared images");
+  } finally {
+    delete globalThis.localStorage;
+  }
 });

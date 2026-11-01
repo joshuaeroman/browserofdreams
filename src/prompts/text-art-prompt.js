@@ -55,8 +55,8 @@ export function buildTextArtPrompts(opts) {
   var timelineProfile = getTimelineDivergenceProfile(o.timelineDivergence, era.year);
   var styleMode = o.styleMode || resolveTextArtStyleMode(o.imageEngine || "text-pixel", era.year);
   var dims = computePixelGridDimensions(o.width, o.height, role, o.aspectRatio);
-  var roleNoun = role === "ad" ? "web ad" : (role === "icon" ? "icon" : "editorial");
-  var promptText = String(o.prompt || (role === "ad" ? "Vintage web banner advertisement" : (role === "icon" ? "Small interface icon glyph" : "Editorial illustration"))).trim();
+  var roleNoun = role === "ad" ? "web ad" : (role === "icon" ? "icon" : (role === "graphic" ? "graphic" : "editorial"));
+  var promptText = String(o.prompt || (role === "ad" ? "Vintage web banner advertisement" : (role === "icon" ? "Small interface icon glyph" : (role === "graphic" ? "Page logo or decorative emblem" : "Editorial illustration")))).trim();
 
   if (styleMode === "pixel") {
     var sysPixel =
@@ -72,7 +72,9 @@ export function buildTextArtPrompts(opts) {
         ? "Bevel (light top/left, dark bottom/right), icon left, Courier headline font-size=\"" + Math.max(4, Math.round(dims.gridH * 0.34)) + "\", [CLICK HERE] button right."
         : (role === "icon"
           ? "Single centered glyph on a flat single-color background. No text, no border, no bevel."
-          : "Foreground, midground, and light.")) +
+          : (role === "graphic"
+            ? "Flat emblem: one geometric mark plus a short Courier wordmark. Solid fills, no scenery."
+            : "Foreground, midground, and light."))) +
       "\nOnly the <svg>.";
 
     return {
@@ -94,7 +96,9 @@ export function buildTextArtPrompts(opts) {
       ? "Logo, headline, subcopy, border, and a CLICK HERE / SHOP NOW / LEARN MORE button."
       : (role === "icon"
         ? "Single centered glyph, flat fills, no text, transparent background."
-        : "Depth, light, and period detail.")) +
+        : (role === "graphic"
+          ? "Flat geometric mark with a short wordmark, solid fills, transparent background, no photographic detail."
+          : "Depth, light, and period detail."))) +
     " Only the <svg>.";
 
   return {

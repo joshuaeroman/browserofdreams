@@ -121,6 +121,18 @@ export function loadDomainImageCache() {
   return _internalDomainCache;
 }
 
+export function resetDomainImageCache() {
+  _internalDomainCache = null;
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem(STORAGE_KEY_DOMAIN_IMAGES);
+    }
+  } catch (e) {
+    // ignore
+  }
+  return {};
+}
+
 export function saveDomainImageCache(domainImageCache) {
   var target = domainImageCache || _internalDomainCache;
   if (!target) return;
@@ -202,7 +214,7 @@ export function extractImageLabel(prompt, alt, domain, role) {
       return brand.charAt(0).toUpperCase() + brand.slice(1);
     }
   }
-  return role === "ad" ? "Advertisement" : (role === "icon" ? "Icon" : "Editorial Photo");
+  return role === "ad" ? "Advertisement" : (role === "icon" ? "Icon" : (role === "graphic" ? "Graphic" : "Editorial Photo"));
 }
 
 /**
@@ -223,7 +235,7 @@ export function isImageCacheEngineCompatible(item, engine) {
 export function formatImageDescriptor(item) {
   if (!item) return "";
   var normalizedRole = (item.role || "photo").toLowerCase();
-  var role = normalizedRole === "ad" ? "AD" : (normalizedRole === "icon" ? "ICON" : "PHOTO");
+  var role = normalizedRole === "ad" ? "AD" : (normalizedRole === "icon" ? "ICON" : (normalizedRole === "graphic" ? "GRAPHIC" : "PHOTO"));
   var label = item.label || extractImageLabel(item.prompt, item.alt, item.domain, normalizedRole);
   var w = parseInt(item.width, 10) || (role === "AD" ? 468 : (role === "ICON" ? 32 : 400));
   var h = parseInt(item.height, 10) || (role === "AD" ? 60 : (role === "ICON" ? 32 : 300));
@@ -262,7 +274,7 @@ export function saveDomainImage(item, optionalCache) {
   var list = cache[cacheKey];
 
   var normalizedRole = String(item.role || "photo").toLowerCase();
-  var role = normalizedRole === "ad" || normalizedRole === "icon" ? normalizedRole : "photo";
+  var role = normalizedRole === "ad" || normalizedRole === "icon" || normalizedRole === "graphic" ? normalizedRole : "photo";
   var w = parseInt(item.width, 10) || (role === "ad" ? 468 : (role === "icon" ? 32 : 400));
   var h = parseInt(item.height, 10) || (role === "ad" ? 60 : (role === "icon" ? 32 : 300));
   var orientation = item.orientation || getOrientation(w, h);

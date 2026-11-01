@@ -306,6 +306,8 @@ export function navigateToDream(rawUrl, dateStr, options) {
         referrerHtml: referrerHtml,
         navContext: navCtx,
         imageMode: state.settings.imageMode,
+        imageEngine: state.settings.imageEngine,
+        maxImagesPerPage: state.settings.maxImagesPerPage,
         memes: dayMemes,
         sitePlanText: formatSitePlanForPrompt(planEntry),
         browserProfile: profileId
@@ -507,6 +509,8 @@ export function navigateToDream(rawUrl, dateStr, options) {
           navContext: navCtx
         },
         imageMode: state.settings.imageMode,
+        imageEngine: state.settings.imageEngine,
+        maxImagesPerPage: state.settings.maxImagesPerPage,
         memes: dayMemes,
         sitePlanText: planText,
         browserProfile: homeProfileId

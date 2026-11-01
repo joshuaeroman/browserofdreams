@@ -12,15 +12,23 @@ import { GeminiAdapter } from "../providers/gemini/index.js";
 import { OpenRouterAdapter } from "../providers/openrouter/index.js";
 
 /**
- * Resolves the render engine for one image slot. The "hybrid" engine draws ads
- * and icons with the text model as vector SVG and hero/article photos with the
- * image model.
+ * Resolves the render engine for one image slot. The "hybrid" engine draws ads,
+ * icons, and generic graphics with the text model as vector SVG and
+ * hero/article photos with the image model.
  */
 export function resolveSlotImageEngine(settings, slot) {
   var engine = (settings && settings.imageEngine) || "image-model";
   if (engine !== "hybrid") return engine;
   var role = String((slot && slot.role) || "photo").toLowerCase();
-  return role === "ad" || role === "icon" ? "text-svg" : "image-model";
+  return role === "ad" || role === "icon" || role === "graphic" ? "text-svg" : "image-model";
+}
+
+/**
+ * Only raster image-model slots count toward maxImagesPerPage. Text-drawn SVG
+ * art (hybrid ads, icons, graphics, or any text engine) is uncapped.
+ */
+function slotCountsTowardImageCap(settings, slot) {
+  return resolveSlotImageEngine(settings, slot) === "image-model";
 }
 
 export function resolveActiveTextArtModel(settings, imgProvider) {
@@ -175,7 +183,7 @@ export function generateSingleSlotImage(slot, dateStr, postToIframe, onDone) {
   }
 
   var fullPrompt = basePrompt + " " + era.year + " " +
-    (slot.role === "ad" ? "web ad." : (slot.role === "icon" ? "icon." : "editorial photo.")) + " " +
+    (slot.role === "ad" ? "web ad." : (slot.role === "icon" ? "icon." : (slot.role === "graphic" ? "graphic." : "editorial photo."))) + " " +
     timelineProfile.imageDirective +
     " Spoof brands only. Unnamed generic people. No real logos or public figures.";
   var promptCacheKey = imgProvider + "__" + activeEngine + "__" + activeModelId + "__" + timelineProfile.tierKey + "__" + fullPrompt;
@@ -465,7 +473,10 @@ export function handleDiscoveredImages(slots, dateStr, postToIframe, onStatusUpd
   }
 
   var maxCount = parseInt(state.settings.maxImagesPerPage, 10) || 12;
-  var inFlightOrLoaded = state.activeImageSlots.filter(function(s) {
+  var capSlots = state.activeImageSlots.filter(function(s) {
+    return slotCountsTowardImageCap(state.settings, s);
+  });
+  var inFlightOrLoaded = capSlots.filter(function(s) {
     return s.inFlight || s.alreadyLoaded;
   }).length;
   var remainingSlotsToStart = Math.max(0, maxCount - inFlightOrLoaded);
@@ -477,7 +488,15 @@ export function handleDiscoveredImages(slots, dateStr, postToIframe, onStatusUpd
     return true;
   });
 
-  var toGenerate = newlyEligible.slice(0, remainingSlotsToStart);
+  var toGenerate = [];
+  for (var g = 0; g < newlyEligible.length; g++) {
+    var eligible = newlyEligible[g];
+    if (slotCountsTowardImageCap(state.settings, eligible)) {
+      if (remainingSlotsToStart <= 0) continue;
+      remainingSlotsToStart--;
+    }
+    toGenerate.push(eligible);
+  }
 
   if (toGenerate.length === 0) {
     updateImagesStatus();

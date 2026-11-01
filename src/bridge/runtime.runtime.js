@@ -73,7 +73,7 @@
       }
       var slotId = img.getAttribute('data-dream-id') || ('dream-img-' + i);
       img.setAttribute('data-dream-id', slotId);
-      var role = (img.getAttribute('data-dream-role') || (reuse && reuse.toUpperCase().startsWith('[AD') ? 'ad' : 'photo')).toLowerCase();
+      var role = (img.getAttribute('data-dream-role') || (reuse && /^\[AD\b/i.test(reuse.trim()) ? 'ad' : (reuse && /^\[ICON\b/i.test(reuse.trim()) ? 'icon' : (reuse && /^\[GRAPHIC\b/i.test(reuse.trim()) ? 'graphic' : 'photo')))).toLowerCase();
       var w = parseInt(img.getAttribute('width'), 10) || img.width || (role === 'ad' ? 468 : (role === 'icon' ? 32 : 360));
       var h = parseInt(img.getAttribute('height'), 10) || img.height || (role === 'ad' ? 60 : (role === 'icon' ? 32 : 240));
       if (!img.getAttribute('width') && w > 0) {
@@ -97,7 +97,7 @@
         badge.type = 'button';
         badge.className = 'dream-img-badge';
         badge.setAttribute('data-badge-for', slotId);
-        badge.textContent = alreadyLoaded ? '↻ Redream' : '🎨 Dream ' + (role === 'ad' ? 'Ad' : (role === 'icon' ? 'Icon' : 'Photo'));
+        badge.textContent = alreadyLoaded ? '↻ Redream' : '🎨 Dream ' + (role === 'ad' ? 'Ad' : (role === 'icon' ? 'Icon' : (role === 'graphic' ? 'Graphic' : 'Photo')));
         badge.title = prompt || reuse || '';
         badge.addEventListener('click', (function(sId, p, re, r, a, sw, sh) {
           return function(ev) {
