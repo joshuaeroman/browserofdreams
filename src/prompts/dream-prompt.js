@@ -1,13 +1,15 @@
-import { getEraInfo } from "../core/era.js";
+import { getEraInfo, getCharsetGuide } from "../core/era.js";
 import { getTimelineDivergenceProfile } from "../core/timeline.js";
 import { getHomepageUrl, isHomepageUrl, extractDomain } from "../core/urls.js";
 import { compactHtmlForContext } from "../core/html.js";
 import { getAvailableDomainImages, formatImageDescriptor } from "../core/cache.js";
+import { profileById, buildEraStylesheetCss } from "../core/era-stylesheets.js";
 
 export function buildDreamPrompt(params) {
   var url = params.url;
   var dateStr = params.date;
   var era = getEraInfo(dateStr);
+  var charset = getCharsetGuide(era.year);
   var timelineProfile = getTimelineDivergenceProfile(params.timelineDivergence, era.year);
   var navContext = params.navContext || null;
   var imageMode = params.imageMode || "all";
@@ -28,6 +30,8 @@ export function buildDreamPrompt(params) {
   var cleanMemes = memesList.map(function(w) { return String(w).trim(); }).filter(Boolean);
 
   var domain = extractDomain(url);
+  var client = profileById(params.browserProfile);
+  var eraCss = client ? buildEraStylesheetCss(client.id) : "";
   var availableDomainImages = domain
     ? getAvailableDomainImages(domain, dateStr, params.timelineDivergence)
     : [];
@@ -88,6 +92,11 @@ export function buildDreamPrompt(params) {
       : "") +
     era.styleGuide + "\n" +
     "ERA FIDELITY: the browser of " + era.year + " renders this page, so nothing may come from after " + era.year + " — not a character, icon style, typeface, or rendering trick that did not exist then. Let that browser's own defaults show through (visible link underlines, native form controls, its own scrolling) instead of a modern reset, and match the density and spacing conventions of " + era.year + " sites rather than today's.\n" +
+    (charset.text ? charset.text + "\n" : "") +
+    (eraCss
+      ? "CLIENT: " + client.label + ". The viewer applies the browser defaults below under your page; leave links, buttons, and form fields unstyled unless this site styled them.\n" +
+        "<browser_defaults>\n" + eraCss + "\n</browser_defaults>\n"
+      : "") +
     continuity +
     imageRules + "\n" +
     "Many internal and external <a href>, plus one <form method=\"GET\">. External links may point at made-up domains and pages.\n" +
@@ -173,6 +182,7 @@ export function buildDreamPrompt(params) {
     timelineProfile: timelineProfile,
     homepageUrl: homepageUrl,
     domain: domain,
+    browserProfile: client ? client.id : "",
     availableDomainImages: availableDomainImages,
     hasHomepageContext: hasHomepageContext,
     hasReferrerContext: hasReferrerContext,

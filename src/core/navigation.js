@@ -10,6 +10,7 @@ import { buildDreamPrompt } from "../prompts/dream-prompt.js";
 import { buildSitePlanPrompt, normalizeSitePlan, formatSitePlanForPrompt, MIN_SITE_PLAN_CHARS } from "../prompts/site-plan-prompt.js";
 import { resolveNavigationStages, stageLabel } from "./nav-stages.js";
 import { injectBridgeScript, ensureBridgeInDocument, bridgeCss, bridgeRuntimeJs } from "../bridge/inject.js";
+import { buildEraStylesheetCss, parseBrowserProfileFromPlan, resolveBrowserProfile } from "./era-stylesheets.js";
 import { getProvider, hasValidCredentials, resolveConfig } from "../providers/registry.js";
 import { providerById } from "./settings.js";
 import { getCachedMemesForDate, fetchDayMemesFromModel } from "../features/memes.js";
@@ -31,7 +32,7 @@ export function cancelActiveGeneration() {
     try {
       state.activeStreamWriter.close();
       if (state.activeStreamWriter.doc && state.currentNavigationUrl) {
-        ensureBridgeInDocument(state.activeStreamWriter.doc, state.currentNavigationUrl, state.currentNavigationDate);
+        ensureBridgeInDocument(state.activeStreamWriter.doc, state.currentNavigationUrl, state.currentNavigationDate, state.activeBrowserProfile);
       }
     } catch (e) {}
     state.activeStreamWriter = null;
@@ -42,13 +43,13 @@ export function cancelActiveGeneration() {
   setStatusText("Document: Stopped");
 }
 
-export function mountHtmlInViewport(rawHtml, normalizedUrl, dateStr, fromCache) {
+export function mountHtmlInViewport(rawHtml, normalizedUrl, dateStr, fromCache, browserProfileId) {
   state.currentRawHtml = rawHtml;
   state.currentNavigationUrl = normalizedUrl;
   state.currentNavigationDate = dateStr;
   var era = applyEraTheme(dateStr);
   var title = extractTitleFromHtml(rawHtml, normalizedUrl);
-  var injected = injectBridgeScript(rawHtml, normalizedUrl, dateStr);
+  var injected = injectBridgeScript(rawHtml, normalizedUrl, dateStr, browserProfileId);
 
   if (els.homeScreen) els.homeScreen.hidden = true;
   if (els.dreamFrame) {
@@ -86,7 +87,7 @@ export function renderEraErrorPage(normalizedUrl, dateStr, errorMessage) {
     "<li>Click <strong>Reload</strong> to try dreaming the page again.</li></ul>" +
     "</body></html>";
 
-  mountHtmlInViewport(errorHtml, normalizedUrl, dateStr, false);
+  mountHtmlInViewport(errorHtml, normalizedUrl, dateStr, false, "");
   setStatusText("Error: " + errorMessage);
 }
 
@@ -144,11 +145,12 @@ export function navigateToDream(rawUrl, dateStr, options) {
         url: normalizedUrl,
         date: dateStr,
         title: cachedEntry.title || normalizedUrl,
-        html: cachedEntry.html
+        html: cachedEntry.html,
+        browserProfile: cachedEntry.browserProfile || ""
       });
       updateNavButtons();
     }
-    mountHtmlInViewport(cachedEntry.html, normalizedUrl, dateStr, true);
+    mountHtmlInViewport(cachedEntry.html, normalizedUrl, dateStr, true, cachedEntry.browserProfile || "");
     return;
   }
 
@@ -247,6 +249,8 @@ export function navigateToDream(rawUrl, dateStr, options) {
       var stage = stageLabel(stages, "page");
       var hasPrepStages = stages.length > 1;
       var tlProf = getTimelineDivergenceProfile(state.settings.timelineDivergence, era.year);
+      var profileId = resolveBrowserProfile(planEntry);
+      state.activeBrowserProfile = profileId;
 
       showLoadingOverlay({
         eraKey: era.eraKey,
@@ -275,6 +279,7 @@ export function navigateToDream(rawUrl, dateStr, options) {
             );
             streamWriter = new ProgressiveHtmlWriter(els.dreamFrame.contentDocument, {
               initialStyle: bridgeCss,
+              initialEraStyle: buildEraStylesheetCss(profileId),
               initialScript: substitutedJs,
               onImageRendered: function(slot) {
                 handleDiscoveredImages([slot], dateStr, postToIframe, setStatusImages, normalizedUrl);
@@ -302,7 +307,8 @@ export function navigateToDream(rawUrl, dateStr, options) {
         navContext: navCtx,
         imageMode: state.settings.imageMode,
         memes: dayMemes,
-        sitePlanText: formatSitePlanForPrompt(planEntry)
+        sitePlanText: formatSitePlanForPrompt(planEntry),
+        browserProfile: profileId
       });
 
       var messages = [
@@ -342,7 +348,7 @@ export function navigateToDream(rawUrl, dateStr, options) {
         if (error) {
           if (streamWriter && streamWriter.written && streamWriter.written.length > 0) {
             streamWriter.close();
-            ensureBridgeInDocument(streamWriter.doc, normalizedUrl, dateStr);
+            ensureBridgeInDocument(streamWriter.doc, normalizedUrl, dateStr, profileId);
             setStatusProgress(null);
             setStatusText("Stopped receiving " + hostName + " (" + error + ")");
             return;
@@ -363,6 +369,7 @@ export function navigateToDream(rawUrl, dateStr, options) {
           date: dateStr,
           title: pageTitle,
           html: cleanHtml,
+          browserProfile: profileId,
           timestamp: Date.now()
         };
         state.pageCache[cacheKey] = entryObj;
@@ -372,6 +379,7 @@ export function navigateToDream(rawUrl, dateStr, options) {
             date: dateStr,
             title: pageTitle,
             html: cleanHtml,
+            browserProfile: profileId,
             timestamp: Date.now()
           };
         }
@@ -383,7 +391,8 @@ export function navigateToDream(rawUrl, dateStr, options) {
             url: normalizedUrl,
             date: dateStr,
             title: pageTitle,
-            html: cleanHtml
+            html: cleanHtml,
+            browserProfile: profileId
           });
           updateNavButtons();
         }
@@ -394,7 +403,7 @@ export function navigateToDream(rawUrl, dateStr, options) {
 
         if (streamWriter && streamWriter.hasOpened) {
           streamWriter.close();
-          ensureBridgeInDocument(streamWriter.doc, normalizedUrl, dateStr);
+          ensureBridgeInDocument(streamWriter.doc, normalizedUrl, dateStr, profileId);
 
           var winTitle = document.getElementById("window-title");
           if (winTitle) winTitle.textContent = pageTitle + " - " + era.browserName;
@@ -404,7 +413,7 @@ export function navigateToDream(rawUrl, dateStr, options) {
           setStatusProgress(null);
           setStatusText("Document: Done (" + normalizedUrl + ")");
         } else {
-          mountHtmlInViewport(cleanHtml, normalizedUrl, dateStr, false);
+          mountHtmlInViewport(cleanHtml, normalizedUrl, dateStr, false, profileId);
         }
       }
 
@@ -451,6 +460,7 @@ export function navigateToDream(rawUrl, dateStr, options) {
           return;
         }
         var text = normalizeSitePlan(finalText);
+        var parsedProfile = parseBrowserProfileFromPlan(text);
         var cacheable = text.length >= MIN_SITE_PLAN_CHARS;
         var entry = !text
           ? null
@@ -459,9 +469,10 @@ export function navigateToDream(rawUrl, dateStr, options) {
                   domain: planDomain,
                   date: dateStr,
                   divergence: state.settings.timelineDivergence,
-                  text: text
+                  text: text,
+                  browserProfile: parsedProfile
                 })
-              : { text: text });
+              : { text: text, browserProfile: parsedProfile });
         next(entry);
       }, { sitePlan: true });
     }
@@ -469,6 +480,7 @@ export function navigateToDream(rawUrl, dateStr, options) {
     function streamHomepage(planEntry, next) {
       var stage = stageLabel(stages, "homepage");
       var planText = formatSitePlanForPrompt(planEntry);
+      var homeProfileId = resolveBrowserProfile(planEntry);
       showLoadingOverlay({
         eraKey: era.eraKey,
         dialogTitle: era.browserName + " — " + stage + "Building Site Homepage (" + hostName + ")",
@@ -496,7 +508,8 @@ export function navigateToDream(rawUrl, dateStr, options) {
         },
         imageMode: state.settings.imageMode,
         memes: dayMemes,
-        sitePlanText: planText
+        sitePlanText: planText,
+        browserProfile: homeProfileId
       });
       var homeMessages = [
         { role: "system", content: homePromptBundle.systemPrompt },
@@ -526,6 +539,7 @@ export function navigateToDream(rawUrl, dateStr, options) {
             date: dateStr,
             title: extractTitleFromHtml(homeCleanHtml, homepageUrl),
             html: homeCleanHtml,
+            browserProfile: homeProfileId,
             timestamp: Date.now()
           };
           savePageCache(state.pageCache);

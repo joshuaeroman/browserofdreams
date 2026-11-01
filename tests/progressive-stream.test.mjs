@@ -247,3 +247,51 @@ test("ProgressiveHtmlWriter immediately invokes onImageRendered as soon as an im
   writer.close();
 });
 
+test("ProgressiveHtmlWriter writes the era style before the bridge style", () => {
+  const code = fs.readFileSync(path.resolve("dist/app.js"), "utf8");
+  const sandbox = {
+    console: console,
+    Math: Math,
+    Date: Date,
+    parseInt: parseInt,
+    parseFloat: parseFloat,
+    isNaN: isNaN,
+    String: String,
+    Object: Object,
+    Array: Array,
+    JSON: JSON,
+    RegExp: RegExp,
+    encodeURIComponent: encodeURIComponent,
+    decodeURIComponent: decodeURIComponent,
+    setTimeout: setTimeout,
+    clearTimeout: clearTimeout,
+    setInterval: setInterval,
+    clearInterval: clearInterval
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(code, sandbox);
+
+  const ProgressiveHtmlWriter = sandbox.BrowserOfDreams.ProgressiveHtmlWriter;
+  let writtenParts = [];
+  const mockDoc = {
+    open: () => { writtenParts = []; },
+    write: (chunk) => { writtenParts.push(chunk); },
+    close: () => {}
+  };
+
+  const writer = new ProgressiveHtmlWriter(mockDoc, {
+    initialEraStyle: "a{text-decoration:underline}",
+    initialStyle: "body{margin:0}"
+  });
+  writer.open();
+
+  const written = writtenParts.join("");
+  const eraAt = written.indexOf('<style id="dream-era-style">');
+  const bridgeAt = written.indexOf('<style id="dream-bridge-style">');
+  assert.ok(eraAt !== -1, "era style must be written into the document");
+  assert.ok(bridgeAt !== -1, "bridge style must still be written");
+  assert.ok(eraAt < bridgeAt, "era style must precede the bridge style");
+});
+

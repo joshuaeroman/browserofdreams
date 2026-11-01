@@ -633,6 +633,25 @@ var BrowserOfDreamsBundle = (() => {
       styleGuide: "Design " + year + ": Be inventive but not anachronistic with the webpage design. Interface for that year \u2014 glass, telemetry, or latency \u2014 specific to this service."
     };
   }
+  function getCharsetGuide(year) {
+    var y = parseInt(year, 10);
+    if (!y || isNaN(y)) y = 1999;
+    if (y < 1990) {
+      return {
+        id: "ascii",
+        label: "7-bit ASCII",
+        text: 'CHARACTER SET (7-bit ASCII): type only what an ASCII keyboard produced - letters, digits, and ASCII punctuation. Curly quotes, apostrophes, en and em dashes, ellipses, bullets, accented letters, copyright and trademark signs, and emoji have no byte here; use straight quotes, "-", and "..." instead.'
+      };
+    }
+    if (y <= 2007) {
+      return {
+        id: "windows-1252",
+        label: "Windows-1252",
+        text: "CHARACTER SET (Windows-1252): curly quotes and apostrophes, en and em dashes, the ellipsis, bullets, copyright and trademark signs, and Western European accents all have bytes. Letters outside Latin-1 (Slavic, Greek, Turkish, Vietnamese), arrows, box drawing, check marks, emoji, and combining marks do not - keep to what a Latin-1 keyboard produced."
+      };
+    }
+    return { id: "utf-8", label: "UTF-8", text: "" };
+  }
   var ERA_THEME_COLORS = {
     pre90s: "#050a05",
     "1990s": "#000080",
@@ -1163,6 +1182,7 @@ var BrowserOfDreamsBundle = (() => {
       divergence: div,
       date: item.date || "",
       text,
+      browserProfile: String(item.browserProfile || ""),
       timestamp: Date.now()
     };
     var cache = resolveActiveSitePlanCache(optionalCache);
@@ -1185,7 +1205,8 @@ var BrowserOfDreamsBundle = (() => {
     navigationEpoch: 0,
     currentNavigationUrl: "",
     currentNavigationDate: "",
-    activeStreamWriter: null
+    activeStreamWriter: null,
+    activeBrowserProfile: ""
   };
   function resetActiveRequest() {
     state.navigationEpoch++;
@@ -1285,6 +1306,7 @@ var BrowserOfDreamsBundle = (() => {
       this.doc = doc;
       var opts = options || {};
       this.initialStyle = opts.initialStyle || "";
+      this.initialEraStyle = opts.initialEraStyle || "";
       this.initialScript = opts.initialScript || "";
       this.onImageRendered = opts.onImageRendered || null;
       this.imageCounter = 0;
@@ -1299,6 +1321,9 @@ var BrowserOfDreamsBundle = (() => {
       if (this.doc && !this.hasOpened) {
         try {
           this.doc.open();
+          if (this.initialEraStyle) {
+            this.doc.write('<style id="dream-era-style">' + this.initialEraStyle + "</style>");
+          }
           if (this.initialStyle) {
             this.doc.write('<style id="dream-bridge-style">' + this.initialStyle + "</style>");
           }
@@ -1489,11 +1514,159 @@ var BrowserOfDreamsBundle = (() => {
     return closest;
   }
 
+  // src/core/era-stylesheets.js
+  var BROWSER_PROFILES = [
+    {
+      id: "mosaic",
+      label: "NCSA Mosaic 1.x",
+      pageBackground: "#c0c0c0",
+      bodyFont: '"Times New Roman", Times, serif',
+      bodySize: "16px",
+      linkColor: "#0000EE",
+      visitedColor: "#551A8B",
+      activeColor: "#FF0000",
+      buttonBackground: "#c0c0c0",
+      buttonEdge: "#dfdfdf",
+      buttonFont: '"MS Sans Serif", sans-serif',
+      buttonSize: "13px"
+    },
+    {
+      id: "netscape3",
+      label: "Netscape Navigator 3",
+      pageBackground: "#c0c0c0",
+      bodyFont: '"Times New Roman", Times, serif',
+      bodySize: "16px",
+      linkColor: "#0000EE",
+      visitedColor: "#551A8B",
+      activeColor: "#FF0000",
+      buttonBackground: "#c0c0c0",
+      buttonEdge: "#dfdfdf",
+      buttonFont: '"MS Sans Serif", sans-serif',
+      buttonSize: "13px"
+    },
+    {
+      id: "netscape4",
+      label: "Netscape Navigator 4",
+      pageBackground: "#c0c0c0",
+      bodyFont: '"Times New Roman", Times, serif',
+      bodySize: "16px",
+      linkColor: "#0000EE",
+      visitedColor: "#551A8B",
+      activeColor: "#FF0000",
+      buttonBackground: "#c0c0c0",
+      buttonEdge: "#dfdfdf",
+      buttonFont: '"MS Sans Serif", sans-serif',
+      buttonSize: "13px"
+    },
+    {
+      id: "ie4",
+      label: "Internet Explorer 4",
+      pageBackground: "#ffffff",
+      bodyFont: '"Times New Roman", Times, serif',
+      bodySize: "16px",
+      linkColor: "#0000EE",
+      visitedColor: "#551A8B",
+      activeColor: "#FF0000",
+      buttonBackground: "#c0c0c0",
+      buttonEdge: "#dfdfdf",
+      buttonFont: '"MS Sans Serif", sans-serif',
+      buttonSize: "13px"
+    },
+    {
+      id: "ie5",
+      label: "Internet Explorer 5",
+      pageBackground: "#ffffff",
+      bodyFont: '"Times New Roman", Times, serif',
+      bodySize: "16px",
+      linkColor: "#0000EE",
+      visitedColor: "#551A8B",
+      activeColor: "#FF0000",
+      buttonBackground: "#d4d0c8",
+      buttonEdge: "#ffffff",
+      buttonFont: 'Tahoma, "MS Sans Serif", sans-serif',
+      buttonSize: "12px"
+    },
+    {
+      id: "ie6",
+      label: "Internet Explorer 6",
+      pageBackground: "#ffffff",
+      bodyFont: '"Times New Roman", Times, serif',
+      bodySize: "16px",
+      linkColor: "#0000EE",
+      visitedColor: "#551A8B",
+      activeColor: "#FF0000",
+      buttonBackground: "#d4d0c8",
+      buttonEdge: "#ffffff",
+      buttonFont: 'Tahoma, "MS Sans Serif", sans-serif',
+      buttonSize: "12px"
+    },
+    {
+      id: "firefox1",
+      label: "Mozilla Firefox 1.0",
+      pageBackground: "#ffffff",
+      bodyFont: '"Times New Roman", Times, serif',
+      bodySize: "16px",
+      linkColor: "#0000EE",
+      visitedColor: "#551A8B",
+      activeColor: "#FF0000",
+      buttonBackground: "#d4d0c8",
+      buttonEdge: "#ffffff",
+      buttonFont: 'Tahoma, "MS Sans Serif", sans-serif',
+      buttonSize: "12px"
+    }
+  ];
+  function profileById(id) {
+    var key = String(id || "").trim().toLowerCase();
+    if (!key) return null;
+    for (var i = 0; i < BROWSER_PROFILES.length; i++) {
+      if (BROWSER_PROFILES[i].id === key) return BROWSER_PROFILES[i];
+    }
+    return null;
+  }
+  function listBrowserProfiles() {
+    return BROWSER_PROFILES.map(function(p) {
+      return { id: p.id, label: p.label };
+    });
+  }
+  function profileCss(p) {
+    return [
+      "@layer era-defaults {",
+      "body { background: " + p.pageBackground + "; color: #000000; font-family: " + p.bodyFont + "; font-size: " + p.bodySize + "; margin: 8px; }",
+      "h1, h2, h3, h4, h5, h6 { font-family: " + p.bodyFont + "; }",
+      "a:link { color: " + p.linkColor + "; text-decoration: underline; }",
+      "a:visited { color: " + p.visitedColor + "; text-decoration: underline; }",
+      "a:active { color: " + p.activeColor + "; text-decoration: underline; }",
+      "a:hover { text-decoration: underline; }",
+      "hr { border: 1px inset #808080; height: 2px; }",
+      'button, input[type="button"], input[type="submit"], input[type="reset"] { font-family: ' + p.buttonFont + "; font-size: " + p.buttonSize + "; color: #000000; background: " + p.buttonBackground + "; border: 2px outset " + p.buttonEdge + "; padding: 1px 6px; }",
+      'input[type="text"], input[type="password"], input[type="search"], textarea { font-family: ' + p.buttonFont + "; font-size: " + p.buttonSize + "; color: #000000; background: #ffffff; border: 2px inset " + p.buttonEdge + "; padding: 1px 2px; }",
+      "select { font-family: " + p.buttonFont + "; font-size: " + p.buttonSize + "; background: #ffffff; color: #000000; border: 2px inset " + p.buttonEdge + "; }",
+      "}"
+    ].join("\n");
+  }
+  function buildEraStylesheetCss(profileId) {
+    var profile = profileById(profileId);
+    if (!profile) return "";
+    return profileCss(profile);
+  }
+  function parseBrowserProfileFromPlan(text) {
+    var m = /\bBROWSER PROFILE:\s*([a-z0-9-]+)/i.exec(String(text || ""));
+    if (!m) return "";
+    var profile = profileById(m[1]);
+    return profile ? profile.id : "";
+  }
+  function resolveBrowserProfile(planEntry) {
+    var stored = planEntry && planEntry.browserProfile;
+    if (stored && profileById(stored)) return profileById(stored).id;
+    return parseBrowserProfileFromPlan(planEntry && planEntry.text);
+  }
+
   // src/prompts/dream-prompt.js
   function buildDreamPrompt(params) {
     var url = params.url;
     var dateStr = params.date;
     var era = getEraInfo(dateStr);
+    var charset = getCharsetGuide(era.year);
     var timelineProfile = getTimelineDivergenceProfile(params.timelineDivergence, era.year);
     var navContext = params.navContext || null;
     var imageMode = params.imageMode || "all";
@@ -1513,6 +1686,8 @@ var BrowserOfDreamsBundle = (() => {
       return String(w).trim();
     }).filter(Boolean);
     var domain = extractDomain(url);
+    var client = profileById(params.browserProfile);
+    var eraCss = client ? buildEraStylesheetCss(client.id) : "";
     var availableDomainImages = domain ? getAvailableDomainImages(domain, dateStr, params.timelineDivergence) : [];
     var availableImagesListText = "";
     if (availableDomainImages.length > 0) {
@@ -1543,7 +1718,7 @@ var BrowserOfDreamsBundle = (() => {
     if (sitePlanText) {
       continuity += "site_plan is this domain's design spec: keep its palette, typography, layout, nav, widgets, and graphics, and include its sitemap entries in the nav. Write the page content yourself; never output the plan.\n";
     }
-    var systemPrompt = "Dream Web Engine. One complete HTML page for the requested URL as it existed on " + era.formattedLong + " (" + dateStr + ").\nThat date is today. Headlines, prices, tech, and culture stop there. Present tense. Full articles, nav, sidebars, and footer \u2014 not a stub.\nNo cookie-cutter templates. Era-appropriate dimensions. Only layout tools that existed in " + era.year + ".\n" + timelineProfile.promptGuide + "\n" + (cleanMemes.length > 0 ? "Use these date keywords only where they fit: " + cleanMemes.join(", ") + ".\n" : "") + era.styleGuide + "\nERA FIDELITY: the browser of " + era.year + " renders this page, so nothing may come from after " + era.year + " \u2014 not a character, icon style, typeface, or rendering trick that did not exist then. Let that browser's own defaults show through (visible link underlines, native form controls, its own scrolling) instead of a modern reset, and match the density and spacing conventions of " + era.year + " sites rather than today's.\n" + continuity + imageRules + '\nMany internal and external <a href>, plus one <form method="GET">. External links may point at made-up domains and pages.\nOutput only the document from <!DOCTYPE html> to </html>. No markdown fences or commentary.';
+    var systemPrompt = "Dream Web Engine. One complete HTML page for the requested URL as it existed on " + era.formattedLong + " (" + dateStr + ").\nThat date is today. Headlines, prices, tech, and culture stop there. Present tense. Full articles, nav, sidebars, and footer \u2014 not a stub.\nNo cookie-cutter templates. Era-appropriate dimensions. Only layout tools that existed in " + era.year + ".\n" + timelineProfile.promptGuide + "\n" + (cleanMemes.length > 0 ? "Use these date keywords only where they fit: " + cleanMemes.join(", ") + ".\n" : "") + era.styleGuide + "\nERA FIDELITY: the browser of " + era.year + " renders this page, so nothing may come from after " + era.year + " \u2014 not a character, icon style, typeface, or rendering trick that did not exist then. Let that browser's own defaults show through (visible link underlines, native form controls, its own scrolling) instead of a modern reset, and match the density and spacing conventions of " + era.year + " sites rather than today's.\n" + (charset.text ? charset.text + "\n" : "") + (eraCss ? "CLIENT: " + client.label + ". The viewer applies the browser defaults below under your page; leave links, buttons, and form fields unstyled unless this site styled them.\n<browser_defaults>\n" + eraCss + "\n</browser_defaults>\n" : "") + continuity + imageRules + '\nMany internal and external <a href>, plus one <form method="GET">. External links may point at made-up domains and pages.\nOutput only the document from <!DOCTYPE html> to </html>. No markdown fences or commentary.';
     var userPrompt = "URL: " + url + "\nHome: " + homepageUrl + "\nDate: " + dateStr + "\nTimeline: " + timelineProfile.shortLabel + " " + timelineProfile.pct + "%\n";
     if (seedTargetContext && seedTargetContext.targetSubpageUrl) {
       userPrompt += "\n<homepage_architecture_note>\nThis is the root " + homepageUrl + ". Establish header, CSS, and nav, and link to " + seedTargetContext.targetSubpageUrl + (seedTargetContext.navContext && seedTargetContext.navContext.linkText ? ' ("' + seedTargetContext.navContext.linkText + '")' : "") + ".\n</homepage_architecture_note>\n";
@@ -1593,6 +1768,7 @@ var BrowserOfDreamsBundle = (() => {
       timelineProfile,
       homepageUrl,
       domain,
+      browserProfile: client ? client.id : "",
       availableDomainImages,
       hasHomepageContext,
       hasReferrerContext,
@@ -1607,10 +1783,18 @@ var BrowserOfDreamsBundle = (() => {
     var url = params.url;
     var dateStr = params.date;
     var era = getEraInfo(dateStr);
+    var charset = getCharsetGuide(era.year);
     var timelineProfile = getTimelineDivergenceProfile(params.timelineDivergence, era.year);
     var homepageUrl = params.homepageUrl || getHomepageUrl(url);
     var domain = extractDomain(url) || extractDomain(homepageUrl) || homepageUrl;
-    var systemPrompt = "Dream Web Engine site planner. You are the art director for a fictional website: another model will build every page of it from your plan.\nThe site at " + domain + " is invented \u2014 its organization, people, products, and history. Never check whether it existed, and never refuse because it is fictional.\n\nWHAT THE PLAN IS FOR: the generator first builds this site's homepage from your plan, then builds each child page from your plan plus that homepage. Describe the shared design system concretely enough that every page can be built from your words alone: identity and voice, era look, page structure, navigation, recurring widgets, imagery direction, and the sitemap. Skip article copy and code.\n\nERA: the designer is working in " + era.year + ". Every design choice must be believable for web design in " + era.year + " \u2014 the layout techniques, type, colors, textures, and widgets of that year, nothing from later web eras.\n" + era.styleGuide + "\n\nREALITY SETTING (" + timelineProfile.badgeText + "): " + timelineProfile.description + "\nThe site itself is still fictional; this setting only defines the world around it. Let it shape the site's departments, organization names, recurring figures, and imagery where it matters. The visual design still belongs to " + era.year + `.
+    var browserMenu = listBrowserProfiles().map(function(p) {
+      return p.id + " \u2014 " + p.label;
+    }).join("; ") + "; none \u2014 no browser overrides";
+    var systemPrompt = "Dream Web Engine site planner. You are the art director for a fictional website: another model will build every page of it from your plan.\nThe site at " + domain + " is invented \u2014 its organization, people, products, and history. Never check whether it existed, and never refuse because it is fictional.\n\nWHAT THE PLAN IS FOR: the generator first builds this site's homepage from your plan, then builds each child page from your plan plus that homepage. Describe the shared design system concretely enough that every page can be built from your words alone: identity and voice, era look, page structure, navigation, recurring widgets, imagery direction, and the sitemap. Skip article copy and code.\n\nERA: the designer is working in " + era.year + ". Every design choice must be believable for web design in " + era.year + " \u2014 the layout techniques, type, colors, textures, and widgets of that year, nothing from later web eras.\n" + era.styleGuide + "\n" + (charset.text ? charset.text + " The page generator reads this plan, so keep its wording inside the same set.\n" : "") + "\nREALITY SETTING (" + timelineProfile.badgeText + "): " + timelineProfile.description + "\nThe site itself is still fictional; this setting only defines the world around it. Let it shape the site's departments, organization names, recurring figures, and imagery where it matters. The visual design still belongs to " + era.year + `.
+
+BROWSER PROFILE: the visitor's browser is part of the design. Pick the one this site was built for, appropriate to the year above, and put it on the very first line of the plan, exactly as "BROWSER PROFILE: <id>", before any other text.
+Options: ` + browserMenu + `
+The viewer supplies that browser's own text, link, and form-control styling; design the rest around it. Choose none only if this site should take the viewer's own defaults.
 
 COVER AT LEAST: the site's name and one-sentence concept; palette with concrete colors; typography; page framing and layout approach; masthead/header treatment; navigation placement and style; body column layout with sidebars; recurring widgets and interactive elements; imagery and advertising direction (what the recurring photos, ads, and icons show, and where they sit); footer; and a sitemap listing each page's path, navigation label, and purpose, starting with "/" for the homepage.
 
@@ -1896,7 +2080,27 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
 `;
 
   // src/bridge/inject.js
-  function injectBridgeScript(html, currentUrl, dateStr) {
+  var ERA_BLOCK_PATTERN = /<!-- DREAM_ERA_START -->[\s\S]*?<!-- DREAM_ERA_END -->/g;
+  function eraMarkupFor(browserProfileId) {
+    var eraCss = buildEraStylesheetCss(browserProfileId);
+    if (!eraCss) return "";
+    return '<!-- DREAM_ERA_START -->\n<style id="dream-era-style">\n' + eraCss + "\n</style>\n<!-- DREAM_ERA_END -->\n";
+  }
+  function insertEraIntoHtml(html, eraMarkup) {
+    if (!eraMarkup) return html;
+    if (/<head[^>]*>/i.test(html)) {
+      return html.replace(/<head([^>]*)>/i, function(match, attrs) {
+        return "<head" + attrs + ">\n" + eraMarkup;
+      });
+    }
+    if (/<html[^>]*>/i.test(html)) {
+      return html.replace(/<html([^>]*)>/i, function(match, attrs) {
+        return "<html" + attrs + ">\n" + eraMarkup;
+      });
+    }
+    return eraMarkup + html;
+  }
+  function injectBridgeScript(html, currentUrl, dateStr, browserProfileId) {
     var cleanHtml = extractHtml(html);
     var substitutedJs = runtime_runtime_default.replace(
       "__BASE_URL__",
@@ -1907,12 +2111,14 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       /<!-- BROWSER_OF_DREAMS_BRIDGE_START -->[\s\S]*?<!-- BROWSER_OF_DREAMS_BRIDGE_END -->/g,
       ""
     );
+    cleanHtml = cleanHtml.replace(ERA_BLOCK_PATTERN, "");
+    cleanHtml = insertEraIntoHtml(cleanHtml, eraMarkupFor(browserProfileId));
     if (/<\/body\s*>/i.test(cleanHtml)) {
       return cleanHtml.replace(/<\/body\s*>/i, bridgeMarkup + "</body>");
     }
     return cleanHtml + bridgeMarkup;
   }
-  function ensureBridgeInDocument(doc, currentUrl, dateStr) {
+  function ensureBridgeInDocument(doc, currentUrl, dateStr, browserProfileId) {
     if (!doc) return;
     try {
       if (!doc.getElementById("dream-bridge-style")) {
@@ -1922,6 +2128,21 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
         var targetHead = doc.head || doc.documentElement || doc.body;
         if (targetHead) {
           targetHead.appendChild(style);
+        }
+      }
+      var eraCss = buildEraStylesheetCss(browserProfileId);
+      var eraStyle = doc.getElementById("dream-era-style");
+      if (!eraCss) {
+        if (eraStyle) eraStyle.remove();
+      } else if (eraStyle) {
+        eraStyle.textContent = eraCss;
+      } else {
+        eraStyle = doc.createElement("style");
+        eraStyle.id = "dream-era-style";
+        eraStyle.textContent = eraCss;
+        var eraHead = doc.head || doc.documentElement;
+        if (eraHead) {
+          eraHead.insertBefore(eraStyle, eraHead.firstChild);
         }
       }
       if (!doc.getElementById("dream-bridge-script")) {
@@ -6613,7 +6834,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
   }
 
   // build-stamp:build-stamp
-  var BUILD_TIME = "2026-11-01T00:40:40.883Z";
+  var BUILD_TIME = "2026-11-01T01:29:03.339Z";
 
   // src/ui/settings-modal.js
   var OTHER = "__other__";
@@ -7294,7 +7515,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       try {
         state.activeStreamWriter.close();
         if (state.activeStreamWriter.doc && state.currentNavigationUrl) {
-          ensureBridgeInDocument(state.activeStreamWriter.doc, state.currentNavigationUrl, state.currentNavigationDate);
+          ensureBridgeInDocument(state.activeStreamWriter.doc, state.currentNavigationUrl, state.currentNavigationDate, state.activeBrowserProfile);
         }
       } catch (e) {
       }
@@ -7305,13 +7526,13 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
     setStatusProgress(null);
     setStatusText("Document: Stopped");
   }
-  function mountHtmlInViewport(rawHtml, normalizedUrl, dateStr, fromCache) {
+  function mountHtmlInViewport(rawHtml, normalizedUrl, dateStr, fromCache, browserProfileId) {
     state.currentRawHtml = rawHtml;
     state.currentNavigationUrl = normalizedUrl;
     state.currentNavigationDate = dateStr;
     var era = applyEraTheme(dateStr);
     var title = extractTitleFromHtml(rawHtml, normalizedUrl);
-    var injected = injectBridgeScript(rawHtml, normalizedUrl, dateStr);
+    var injected = injectBridgeScript(rawHtml, normalizedUrl, dateStr, browserProfileId);
     if (els.homeScreen) els.homeScreen.hidden = true;
     if (els.dreamFrame) {
       els.dreamFrame.hidden = false;
@@ -7328,7 +7549,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
     var era = getEraInfo(dateStr);
     var escapedErr = String(errorMessage || "Unknown error").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     var errorHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cannot find server</title><style>body{font-family:Verdana,Tahoma,sans-serif;background:#ffffff;color:#000000;padding:32px;max-width:680px;margin:0 auto;}h1{font-size:18px;color:#990000;border-bottom:1px solid #cccccc;padding-bottom:8px;}.box{background:#f7f7f2;border:1px solid #cccccc;padding:14px;font-family:monospace;font-size:12px;margin:16px 0;white-space:pre-wrap;}p,li{font-size:12px;line-height:1.5;}</style></head><body><h1>\u26A0\uFE0F The Dream Page Cannot Be Displayed</h1><p>The server at <strong>' + normalizedUrl + "</strong> on <strong>" + era.formattedLong + '</strong> could not be reached.</p><div class="box">' + escapedErr + "</div><p>Please try the following:</p><ul><li>Click the <strong>\u2699 Settings</strong> button in the browser toolbar to verify your provider settings and selected model.</li><li>Click <strong>Reload</strong> to try dreaming the page again.</li></ul></body></html>";
-    mountHtmlInViewport(errorHtml, normalizedUrl, dateStr, false);
+    mountHtmlInViewport(errorHtml, normalizedUrl, dateStr, false, "");
     setStatusText("Error: " + errorMessage);
   }
   function dispatchStreaming(messages, onChunk, onComplete, customOpts) {
@@ -7377,11 +7598,12 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
           url: normalizedUrl,
           date: dateStr,
           title: cachedEntry.title || normalizedUrl,
-          html: cachedEntry.html
+          html: cachedEntry.html,
+          browserProfile: cachedEntry.browserProfile || ""
         });
         updateNavButtons();
       }
-      mountHtmlInViewport(cachedEntry.html, normalizedUrl, dateStr, true);
+      mountHtmlInViewport(cachedEntry.html, normalizedUrl, dateStr, true, cachedEntry.browserProfile || "");
       return;
     }
     if (!hasValidCredentials(state.settings, state.settings.pageProvider)) {
@@ -7468,6 +7690,8 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
         var stage = stageLabel(stages, "page");
         var hasPrepStages = stages.length > 1;
         var tlProf = getTimelineDivergenceProfile(state.settings.timelineDivergence, era.year);
+        var profileId = resolveBrowserProfile(planEntry);
+        state.activeBrowserProfile = profileId;
         showLoadingOverlay({
           eraKey: era.eraKey,
           dialogTitle: era.browserName + " \u2014 " + stage + "Transferring from " + hostName,
@@ -7489,6 +7713,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
               );
               streamWriter = new ProgressiveHtmlWriter(els.dreamFrame.contentDocument, {
                 initialStyle: bridge_runtime_default,
+                initialEraStyle: buildEraStylesheetCss(profileId),
                 initialScript: substitutedJs,
                 onImageRendered: function(slot) {
                   handleDiscoveredImages([slot], dateStr, postToIframe, setStatusImages, normalizedUrl);
@@ -7515,7 +7740,8 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
           navContext: navCtx,
           imageMode: state.settings.imageMode,
           memes: dayMemes,
-          sitePlanText: formatSitePlanForPrompt(planEntry)
+          sitePlanText: formatSitePlanForPrompt(planEntry),
+          browserProfile: profileId
         });
         var messages = [
           { role: "system", content: promptBundle.systemPrompt },
@@ -7549,7 +7775,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
           if (error) {
             if (streamWriter && streamWriter.written && streamWriter.written.length > 0) {
               streamWriter.close();
-              ensureBridgeInDocument(streamWriter.doc, normalizedUrl, dateStr);
+              ensureBridgeInDocument(streamWriter.doc, normalizedUrl, dateStr, profileId);
               setStatusProgress(null);
               setStatusText("Stopped receiving " + hostName + " (" + error + ")");
               return;
@@ -7568,6 +7794,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
             date: dateStr,
             title: pageTitle,
             html: cleanHtml,
+            browserProfile: profileId,
             timestamp: Date.now()
           };
           state.pageCache[cacheKey] = entryObj;
@@ -7577,6 +7804,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
               date: dateStr,
               title: pageTitle,
               html: cleanHtml,
+              browserProfile: profileId,
               timestamp: Date.now()
             };
           }
@@ -7587,7 +7815,8 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
               url: normalizedUrl,
               date: dateStr,
               title: pageTitle,
-              html: cleanHtml
+              html: cleanHtml,
+              browserProfile: profileId
             });
             updateNavButtons();
           }
@@ -7596,7 +7825,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
           state.currentNavigationDate = dateStr;
           if (streamWriter && streamWriter.hasOpened) {
             streamWriter.close();
-            ensureBridgeInDocument(streamWriter.doc, normalizedUrl, dateStr);
+            ensureBridgeInDocument(streamWriter.doc, normalizedUrl, dateStr, profileId);
             var winTitle = document.getElementById("window-title");
             if (winTitle) winTitle.textContent = pageTitle + " - " + era.browserName;
             if (typeof document !== "undefined") {
@@ -7605,7 +7834,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
             setStatusProgress(null);
             setStatusText("Document: Done (" + normalizedUrl + ")");
           } else {
-            mountHtmlInViewport(cleanHtml, normalizedUrl, dateStr, false);
+            mountHtmlInViewport(cleanHtml, normalizedUrl, dateStr, false, profileId);
           }
         }
         state.activeRequest = dispatchStreaming(messages, onStreamChunk, onStreamComplete);
@@ -7648,19 +7877,22 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
             return;
           }
           var text = normalizeSitePlan(finalText);
+          var parsedProfile = parseBrowserProfileFromPlan(text);
           var cacheable = text.length >= MIN_SITE_PLAN_CHARS;
           var entry = !text ? null : cacheable ? saveSitePlan({
             domain: planDomain,
             date: dateStr,
             divergence: state.settings.timelineDivergence,
-            text
-          }) : { text };
+            text,
+            browserProfile: parsedProfile
+          }) : { text, browserProfile: parsedProfile };
           next(entry);
         }, { sitePlan: true });
       }
       function streamHomepage(planEntry, next) {
         var stage = stageLabel(stages, "homepage");
         var planText = formatSitePlanForPrompt(planEntry);
+        var homeProfileId = resolveBrowserProfile(planEntry);
         showLoadingOverlay({
           eraKey: era.eraKey,
           dialogTitle: era.browserName + " \u2014 " + stage + "Building Site Homepage (" + hostName + ")",
@@ -7687,7 +7919,8 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
           },
           imageMode: state.settings.imageMode,
           memes: dayMemes,
-          sitePlanText: planText
+          sitePlanText: planText,
+          browserProfile: homeProfileId
         });
         var homeMessages = [
           { role: "system", content: homePromptBundle.systemPrompt },
@@ -7716,6 +7949,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
               date: dateStr,
               title: extractTitleFromHtml(homeCleanHtml, homepageUrl),
               html: homeCleanHtml,
+              browserProfile: homeProfileId,
               timestamp: Date.now()
             };
             savePageCache(state.pageCache);
@@ -8085,7 +8319,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
           els.dateInput.value = prev.date;
           applyEraTheme(prev.date);
           updateNavButtons();
-          mountHtmlInViewport(prev.html, prev.url, prev.date, true);
+          mountHtmlInViewport(prev.html, prev.url, prev.date, true, prev.browserProfile);
         }
       });
     }
@@ -8097,7 +8331,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
           els.dateInput.value = next.date;
           applyEraTheme(next.date);
           updateNavButtons();
-          mountHtmlInViewport(next.html, next.url, next.date, true);
+          mountHtmlInViewport(next.html, next.url, next.date, true, next.browserProfile);
         }
       });
     }
@@ -8359,6 +8593,8 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
     makeDomainImageKey,
     injectBridgeScript,
     ensureBridgeInDocument,
+    buildEraStylesheetCss,
+    parseBrowserProfileFromPlan,
     ProgressiveHtmlWriter,
     setStatusProgress,
     downscaleImageToSlot,

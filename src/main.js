@@ -37,6 +37,7 @@ import { DayMemesEngine, getCachedMemesForDate, fetchDayMemesFromModel, clearMem
 import { TextArtGenerator } from "./features/text-art.js";
 import { handleDiscoveredImages, generateSingleSlotImage, resolveActiveTextArtModel, downscaleImageToSlot } from "./features/images.js";
 import { injectBridgeScript, ensureBridgeInDocument } from "./bridge/inject.js";
+import { buildEraStylesheetCss, parseBrowserProfileFromPlan } from "./core/era-stylesheets.js";
 import { initPWA, promptInstall, canPromptInstall, isStandaloneMode, onPwaStateChange, setupWindowControls, pwaState, syncStandaloneDOM } from "./features/pwa.js";
 
 // Import UI Controllers
@@ -105,7 +106,7 @@ export function initApp() {
         els.dateInput.value = prev.date;
         applyEraTheme(prev.date);
         updateNavButtons();
-        mountHtmlInViewport(prev.html, prev.url, prev.date, true);
+        mountHtmlInViewport(prev.html, prev.url, prev.date, true, prev.browserProfile);
       }
     });
   }
@@ -118,7 +119,7 @@ export function initApp() {
         els.dateInput.value = next.date;
         applyEraTheme(next.date);
         updateNavButtons();
-        mountHtmlInViewport(next.html, next.url, next.date, true);
+        mountHtmlInViewport(next.html, next.url, next.date, true, next.browserProfile);
       }
     });
   }
@@ -406,6 +407,8 @@ var BrowserOfDreams = {
   makeDomainImageKey: makeDomainImageKey,
   injectBridgeScript: injectBridgeScript,
   ensureBridgeInDocument: ensureBridgeInDocument,
+  buildEraStylesheetCss: buildEraStylesheetCss,
+  parseBrowserProfileFromPlan: parseBrowserProfileFromPlan,
   ProgressiveHtmlWriter: ProgressiveHtmlWriter,
   setStatusProgress: setStatusProgress,
   downscaleImageToSlot: downscaleImageToSlot,

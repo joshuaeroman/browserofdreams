@@ -33,6 +33,7 @@ var MEME_KEYWORDS = [
 ];
 
 var SITE_PLAN_TEXT =
+  "BROWSER PROFILE: netscape4\n" +
   "Mock Dial-Up Daily is a one-editor neighborhood newspaper, loading from a home page with a stacked centered wordmark over a 32px banner.\n" +
   "Navy #000080, silver #c0c0c0, and yellow #ffff00 on Times New Roman; nested tables and a tiled starburst background.\n" +
   "A yellow button row under the masthead leads to the borough desks; the front page runs three columns with a sidebar holding a hit counter, webring box, weather strip, and guestbook link.\n" +

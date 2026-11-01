@@ -15,6 +15,7 @@ import {
   outputTokenBudget
 } from "../src/core/effort.js";
 import { MIN_SITE_PLAN_CHARS } from "../src/prompts/site-plan-prompt.js";
+import { getCharsetGuide } from "../src/core/era.js";
 
 var URL_CHILD = "http://www.nycnews.com/manhattan";
 var DATE = "2001-09-11";
@@ -215,4 +216,40 @@ test("A plan shorter than the minimum is used but never cached", () => {
   // navigation boundary, so verify the constant is the threshold used there.
   var source = fs.readFileSync("src/core/navigation.js", "utf8");
   assert.ok(source.includes("text.length >= MIN_SITE_PLAN_CHARS"));
+});
+
+test("Character set guidance follows the year and stops once UTF-8 is period", () => {
+  assert.equal(getCharsetGuide(1987).id, "ascii");
+  assert.equal(getCharsetGuide(1989).id, "ascii");
+  assert.equal(getCharsetGuide(1990).id, "windows-1252");
+  assert.equal(getCharsetGuide(2001).id, "windows-1252");
+  assert.equal(getCharsetGuide(2007).id, "windows-1252");
+  assert.equal(getCharsetGuide(2008).id, "utf-8");
+  assert.equal(getCharsetGuide(2015).text, "");
+  assert.equal(getCharsetGuide(undefined).id, "windows-1252");
+
+  var ascii = getCharsetGuide(1987).text;
+  assert.ok(ascii.includes("CHARACTER SET (7-bit ASCII)"));
+  assert.ok(ascii.includes("straight quotes"));
+  // The instruction must itself be ASCII: a curly quote here would model
+  // exactly the character it forbids.
+  assert.ok(/^[\x00-\x7F]*$/.test(ascii));
+
+  var cp1252 = getCharsetGuide(2001).text;
+  assert.ok(cp1252.includes("CHARACTER SET (Windows-1252)"));
+  assert.ok(cp1252.includes("Latin-1"));
+  assert.ok(/^[\x00-\x7F]*$/.test(cp1252));
+
+  var page1987 = buildDreamPrompt({ url: "http://www.x.com/", date: "1987-06-01" }).systemPrompt;
+  assert.ok(page1987.includes("CHARACTER SET (7-bit ASCII)"));
+  var page2001 = buildDreamPrompt({ url: "http://www.x.com/", date: "2001-09-11" }).systemPrompt;
+  assert.ok(page2001.includes("CHARACTER SET (Windows-1252)"));
+  var page2015 = buildDreamPrompt({ url: "http://www.x.com/", date: "2015-06-01" }).systemPrompt;
+  assert.equal(page2015.includes("CHARACTER SET"), false);
+
+  var plan1987 = buildSitePlanPrompt({ url: "http://www.x.com/", date: "1987-06-01" }).systemPrompt;
+  assert.ok(plan1987.includes("CHARACTER SET (7-bit ASCII)"));
+  assert.ok(plan1987.includes("keep its wording inside the same set"));
+  var plan2015 = buildSitePlanPrompt({ url: "http://www.x.com/", date: "2015-06-01" }).systemPrompt;
+  assert.equal(plan2015.includes("CHARACTER SET"), false);
 });

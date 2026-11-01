@@ -14,7 +14,8 @@ export const state = {
   navigationEpoch: 0,
   currentNavigationUrl: "",
   currentNavigationDate: "",
-  activeStreamWriter: null
+  activeStreamWriter: null,
+  activeBrowserProfile: ""
 };
 
 export function resetActiveRequest() {
