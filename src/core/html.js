@@ -59,6 +59,7 @@ export class ProgressiveHtmlWriter {
     this.doc = doc;
     var opts = options || {};
     this.initialStyle = opts.initialStyle || "";
+    this.initialEraStyle = opts.initialEraStyle || "";
     this.initialScript = opts.initialScript || "";
     this.onImageRendered = opts.onImageRendered || null;
     this.imageCounter = 0;
@@ -74,6 +75,9 @@ export class ProgressiveHtmlWriter {
     if (this.doc && !this.hasOpened) {
       try {
         this.doc.open();
+        if (this.initialEraStyle) {
+          this.doc.write('<style id="dream-era-style">' + this.initialEraStyle + '</style>');
+        }
         if (this.initialStyle) {
           this.doc.write('<style id="dream-bridge-style">' + this.initialStyle + '</style>');
         }

@@ -105,6 +105,36 @@ export function getEraInfo(dateStr) {
   };
 }
 
+// The character repertoire a page of that year could actually carry. Written
+// in ASCII itself so the instruction never models the characters it forbids.
+export function getCharsetGuide(year) {
+  var y = parseInt(year, 10);
+  if (!y || isNaN(y)) y = 1999;
+
+  if (y < 1990) {
+    return {
+      id: "ascii",
+      label: "7-bit ASCII",
+      text:
+        "CHARACTER SET (7-bit ASCII): type only what an ASCII keyboard produced - letters, digits, and ASCII punctuation. " +
+        "Curly quotes, apostrophes, en and em dashes, ellipses, bullets, accented letters, copyright and trademark signs, and emoji have no byte here; " +
+        "use straight quotes, \"-\", and \"...\" instead."
+    };
+  }
+
+  if (y <= 2007) {
+    return {
+      id: "windows-1252",
+      label: "Windows-1252",
+      text:
+        "CHARACTER SET (Windows-1252): curly quotes and apostrophes, en and em dashes, the ellipsis, bullets, copyright and trademark signs, and Western European accents all have bytes. " +
+        "Letters outside Latin-1 (Slavic, Greek, Turkish, Vietnamese), arrows, box drawing, check marks, emoji, and combining marks do not - keep to what a Latin-1 keyboard produced."
+    };
+  }
+
+  return { id: "utf-8", label: "UTF-8", text: "" };
+}
+
 export const ERA_THEME_COLORS = {
   pre90s: "#050a05",
   "1990s": "#000080",

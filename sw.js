@@ -4,13 +4,13 @@
  * External LLM and image provider API requests are strictly bypassed (never cached).
  */
 
-const CACHE_NAME = "dreams-pwa-v5";
+const CACHE_NAME = "dreams-pwa-v6";
 
 const PRECACHE_ASSETS = [
   "./",
   "./index.html",
-  "./dist/app.js?v=5",
-  "./dist/app.css?v=5",
+  "./dist/app.js?v=6",
+  "./dist/app.css?v=6",
   "./manifest.webmanifest",
   "./icons/icon.svg",
   "./icons/icon-192.png",

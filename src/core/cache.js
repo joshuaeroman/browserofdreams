@@ -495,6 +495,7 @@ export function saveSitePlan(item, optionalCache) {
     divergence: div,
     date: item.date || "",
     text: text,
+    browserProfile: String(item.browserProfile || ""),
     timestamp: Date.now()
   };
 
