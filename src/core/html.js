@@ -58,6 +58,7 @@ export class ProgressiveHtmlWriter {
   constructor(doc, options) {
     this.doc = doc;
     var opts = options || {};
+    this.initialShim = opts.initialShim || "";
     this.initialStyle = opts.initialStyle || "";
     this.initialEraStyle = opts.initialEraStyle || "";
     this.initialScript = opts.initialScript || "";
@@ -71,18 +72,32 @@ export class ProgressiveHtmlWriter {
     this.completed = false;
   }
 
+  // Head markup goes through writeHead when the sink supports it, so a
+  // postMessage transport can tell "before the page starts" apart from chunks.
+  writeHead(markup) {
+    if (!markup) return;
+    if (this.doc && typeof this.doc.writeHead === "function") {
+      this.doc.writeHead(markup);
+    } else if (this.doc) {
+      this.doc.write(markup);
+    }
+  }
+
   open() {
     if (this.doc && !this.hasOpened) {
       try {
         this.doc.open();
+        if (this.initialShim) {
+          this.writeHead('<script id="dream-storage-shim">' + this.initialShim + '</script>');
+        }
         if (this.initialEraStyle) {
-          this.doc.write('<style id="dream-era-style">' + this.initialEraStyle + '</style>');
+          this.writeHead('<style id="dream-era-style">' + this.initialEraStyle + '</style>');
         }
         if (this.initialStyle) {
-          this.doc.write('<style id="dream-bridge-style">' + this.initialStyle + '</style>');
+          this.writeHead('<style id="dream-bridge-style">' + this.initialStyle + '</style>');
         }
         if (this.initialScript) {
-          this.doc.write('<script id="dream-bridge-script">' + this.initialScript + '</script>');
+          this.writeHead('<script id="dream-bridge-script">' + this.initialScript + '</script>');
         }
         this.hasOpened = true;
       } catch (e) {
@@ -92,7 +107,7 @@ export class ProgressiveHtmlWriter {
   }
 
   scanNewImages() {
-    if (!this.doc) return;
+    if (!this.doc || typeof this.doc.querySelectorAll !== "function") return;
     try {
       if (this.doc.defaultView && typeof this.doc.defaultView.__setupDreamImages === "function") {
         this.doc.defaultView.__setupDreamImages();

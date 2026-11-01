@@ -1315,6 +1315,7 @@ var BrowserOfDreamsBundle = (() => {
     constructor(doc, options) {
       this.doc = doc;
       var opts = options || {};
+      this.initialShim = opts.initialShim || "";
       this.initialStyle = opts.initialStyle || "";
       this.initialEraStyle = opts.initialEraStyle || "";
       this.initialScript = opts.initialScript || "";
@@ -1327,18 +1328,31 @@ var BrowserOfDreamsBundle = (() => {
       this.stripOffset = 0;
       this.completed = false;
     }
+    // Head markup goes through writeHead when the sink supports it, so a
+    // postMessage transport can tell "before the page starts" apart from chunks.
+    writeHead(markup) {
+      if (!markup) return;
+      if (this.doc && typeof this.doc.writeHead === "function") {
+        this.doc.writeHead(markup);
+      } else if (this.doc) {
+        this.doc.write(markup);
+      }
+    }
     open() {
       if (this.doc && !this.hasOpened) {
         try {
           this.doc.open();
+          if (this.initialShim) {
+            this.writeHead('<script id="dream-storage-shim">' + this.initialShim + "<\/script>");
+          }
           if (this.initialEraStyle) {
-            this.doc.write('<style id="dream-era-style">' + this.initialEraStyle + "</style>");
+            this.writeHead('<style id="dream-era-style">' + this.initialEraStyle + "</style>");
           }
           if (this.initialStyle) {
-            this.doc.write('<style id="dream-bridge-style">' + this.initialStyle + "</style>");
+            this.writeHead('<style id="dream-bridge-style">' + this.initialStyle + "</style>");
           }
           if (this.initialScript) {
-            this.doc.write('<script id="dream-bridge-script">' + this.initialScript + "<\/script>");
+            this.writeHead('<script id="dream-bridge-script">' + this.initialScript + "<\/script>");
           }
           this.hasOpened = true;
         } catch (e) {
@@ -1347,7 +1361,7 @@ var BrowserOfDreamsBundle = (() => {
       }
     }
     scanNewImages() {
-      if (!this.doc) return;
+      if (!this.doc || typeof this.doc.querySelectorAll !== "function") return;
       try {
         if (this.doc.defaultView && typeof this.doc.defaultView.__setupDreamImages === "function") {
           this.doc.defaultView.__setupDreamImages();
@@ -2208,26 +2222,39 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
 })();
 `;
 
+  // src/bridge/storage-shim.runtime.js
+  var storage_shim_runtime_default = '(function () {\n  /*\n   * The dream frame runs with a sandboxed opaque origin, so the real\n   * localStorage/sessionStorage throw SecurityError on any access. Generated\n   * era pages still expect the Web Storage API (hit counters, guestbook names,\n   * theme toggles), so install an in-memory store per document. Nothing is\n   * persisted and nothing is shared with the host app: a stolen "storage"\n   * reference can only read values the same page wrote.\n   */\n  function makeStore() {\n    var data = Object.create(null);\n    var api = {\n      getItem: function (key) {\n        var k = String(key);\n        return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null;\n      },\n      setItem: function (key, value) {\n        data[String(key)] = String(value);\n      },\n      removeItem: function (key) {\n        delete data[String(key)];\n      },\n      clear: function () {\n        data = Object.create(null);\n      },\n      key: function (index) {\n        var keys = Object.keys(data);\n        var i = Number(index);\n        return i >= 0 && i < keys.length ? keys[i] : null;\n      }\n    };\n    Object.defineProperty(api, "length", {\n      get: function () {\n        return Object.keys(data).length;\n      }\n    });\n    return api;\n  }\n\n  function install(name) {\n    var store = makeStore();\n    try {\n      Object.defineProperty(window, name, {\n        configurable: true,\n        enumerable: true,\n        get: function () {\n          return store;\n        }\n      });\n    } catch (e) {}\n  }\n\n  install("localStorage");\n  install("sessionStorage");\n})();\n';
+
+  // src/bridge/stream-sink.runtime.js
+  var stream_sink_runtime_default = '(function () {\n  /*\n   * Frame-side receiver for the progressive page stream.\n   *\n   * The dream frame is sandboxed without allow-same-origin, so the host page\n   * cannot touch contentDocument. The host therefore posts markup here and this\n   * sink owns document.write for the frame. document.open() clears every\n   * listener registered on the window, so the listener is re-attached by hand\n   * right after the reset.\n   */\n  var activeStream = null;\n\n  function onStream(ev) {\n    var msg = ev.data;\n    if (!msg || typeof msg !== "object" || typeof msg.streamId !== "string") return;\n\n    if (msg.type === "DREAM_STREAM_OPEN") {\n      activeStream = msg.streamId;\n      document.open();\n      window.addEventListener("message", onStream);\n      document.write(msg.head || "");\n      window.parent.postMessage({ type: "DREAM_STREAM_OPENED", streamId: activeStream }, "*");\n      return;\n    }\n\n    if (msg.streamId !== activeStream) return;\n\n    if (msg.type === "DREAM_STREAM_CHUNK") {\n      document.write(String(msg.html || ""));\n    } else if (msg.type === "DREAM_STREAM_CLOSE") {\n      activeStream = null;\n      try {\n        document.close();\n      } catch (e) {}\n    }\n  }\n\n  window.addEventListener("message", onStream);\n  window.parent.postMessage({ type: "DREAM_STREAM_READY" }, "*");\n})();\n';
+
   // src/bridge/inject.js
   var ERA_BLOCK_PATTERN = /<!-- DREAM_ERA_START -->[\s\S]*?<!-- DREAM_ERA_END -->/g;
+  var STORAGE_SHIM_PATTERN = /<!-- DREAM_STORAGE_SHIM_START -->[\s\S]*?<!-- DREAM_STORAGE_SHIM_END -->/g;
+  function storageShimMarkup() {
+    return '<!-- DREAM_STORAGE_SHIM_START -->\n<script id="dream-storage-shim">\n' + storage_shim_runtime_default + "\n<\/script>\n<!-- DREAM_STORAGE_SHIM_END -->\n";
+  }
+  function buildStreamShell() {
+    return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Dream Stream</title></head><body><script id="dream-stream-sink">\n' + stream_sink_runtime_default + "\n<\/script></body></html>";
+  }
   function eraMarkupFor(browserProfileId) {
     var eraCss = buildEraStylesheetCss(browserProfileId);
     if (!eraCss) return "";
     return '<!-- DREAM_ERA_START -->\n<style id="dream-era-style">\n' + eraCss + "\n</style>\n<!-- DREAM_ERA_END -->\n";
   }
-  function insertEraIntoHtml(html, eraMarkup) {
-    if (!eraMarkup) return html;
+  function insertIntoHead(html, headMarkup) {
+    if (!headMarkup) return html;
     if (/<head[^>]*>/i.test(html)) {
       return html.replace(/<head([^>]*)>/i, function(match, attrs) {
-        return "<head" + attrs + ">\n" + eraMarkup;
+        return "<head" + attrs + ">\n" + headMarkup;
       });
     }
     if (/<html[^>]*>/i.test(html)) {
       return html.replace(/<html([^>]*)>/i, function(match, attrs) {
-        return "<html" + attrs + ">\n" + eraMarkup;
+        return "<html" + attrs + ">\n" + headMarkup;
       });
     }
-    return eraMarkup + html;
+    return headMarkup + html;
   }
   function injectBridgeScript(html, currentUrl, dateStr, browserProfileId) {
     var cleanHtml = extractHtml(html);
@@ -2241,55 +2268,92 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       ""
     );
     cleanHtml = cleanHtml.replace(ERA_BLOCK_PATTERN, "");
-    cleanHtml = insertEraIntoHtml(cleanHtml, eraMarkupFor(browserProfileId));
+    cleanHtml = cleanHtml.replace(STORAGE_SHIM_PATTERN, "");
+    cleanHtml = insertIntoHead(cleanHtml, storageShimMarkup() + eraMarkupFor(browserProfileId));
     if (/<\/body\s*>/i.test(cleanHtml)) {
       return cleanHtml.replace(/<\/body\s*>/i, bridgeMarkup + "</body>");
     }
     return cleanHtml + bridgeMarkup;
   }
-  function ensureBridgeInDocument(doc, currentUrl, dateStr, browserProfileId) {
-    if (!doc) return;
-    try {
-      if (!doc.getElementById("dream-bridge-style")) {
-        var style = doc.createElement("style");
-        style.id = "dream-bridge-style";
-        style.textContent = bridge_runtime_default;
-        var targetHead = doc.head || doc.documentElement || doc.body;
-        if (targetHead) {
-          targetHead.appendChild(style);
-        }
+
+  // src/core/frame-stream.js
+  var STREAM_MSG = {
+    READY: "DREAM_STREAM_READY",
+    OPENED: "DREAM_STREAM_OPENED",
+    OPEN: "DREAM_STREAM_OPEN",
+    CHUNK: "DREAM_STREAM_CHUNK",
+    CLOSE: "DREAM_STREAM_CLOSE"
+  };
+  function createFrameStreamSink(frame, streamId) {
+    var queue = [];
+    var ready = false;
+    var closed = false;
+    var head = "";
+    var sentOpen = false;
+    function deliver(message) {
+      if (!frame || !frame.contentWindow) return;
+      try {
+        frame.contentWindow.postMessage(message, "*");
+      } catch (e) {
       }
-      var eraCss = buildEraStylesheetCss(browserProfileId);
-      var eraStyle = doc.getElementById("dream-era-style");
-      if (!eraCss) {
-        if (eraStyle) eraStyle.remove();
-      } else if (eraStyle) {
-        eraStyle.textContent = eraCss;
-      } else {
-        eraStyle = doc.createElement("style");
-        eraStyle.id = "dream-era-style";
-        eraStyle.textContent = eraCss;
-        var eraHead = doc.head || doc.documentElement;
-        if (eraHead) {
-          eraHead.insertBefore(eraStyle, eraHead.firstChild);
-        }
-      }
-      if (!doc.getElementById("dream-bridge-script")) {
-        var script = doc.createElement("script");
-        script.id = "dream-bridge-script";
-        var substitutedJs = runtime_runtime_default.replace(
-          "__BASE_URL__",
-          JSON.stringify(currentUrl || "http://www.example.com/")
-        );
-        script.textContent = substitutedJs;
-        var targetBody = doc.body || doc.documentElement;
-        if (targetBody) {
-          targetBody.appendChild(script);
-        }
-      }
-    } catch (e) {
-      console.warn("Could not ensure bridge in document:", e);
     }
+    function enqueue(message) {
+      if (closed) return;
+      if (!ready) {
+        queue.push(message);
+        return;
+      }
+      deliver(message);
+    }
+    function onMessage(ev) {
+      if (!frame || ev.source !== frame.contentWindow) return;
+      var msg = ev.data;
+      if (!msg || typeof msg !== "object") return;
+      if (msg.type !== STREAM_MSG.READY || ready) return;
+      ready = true;
+      var pending = queue;
+      queue = [];
+      for (var i = 0; i < pending.length; i++) deliver(pending[i]);
+    }
+    function sendOpen() {
+      if (sentOpen) return;
+      sentOpen = true;
+      enqueue({ type: STREAM_MSG.OPEN, streamId, head });
+      head = "";
+    }
+    if (typeof window !== "undefined" && window.addEventListener) {
+      window.addEventListener("message", onMessage);
+    }
+    return {
+      open: function() {
+      },
+      writeHead: function(markup) {
+        if (!markup) return;
+        if (sentOpen) {
+          enqueue({ type: STREAM_MSG.CHUNK, streamId, html: markup });
+          return;
+        }
+        head += markup;
+      },
+      write: function(html) {
+        if (!html) return;
+        sendOpen();
+        enqueue({ type: STREAM_MSG.CHUNK, streamId, html });
+      },
+      close: function() {
+        if (closed) return;
+        sendOpen();
+        if (ready) {
+          deliver({ type: STREAM_MSG.CLOSE, streamId });
+        } else {
+          queue.push({ type: STREAM_MSG.CLOSE, streamId });
+        }
+        closed = true;
+        if (typeof window !== "undefined" && window.removeEventListener) {
+          window.removeEventListener("message", onMessage);
+        }
+      }
+    };
   }
 
   // src/providers/gemini/agent-platform.js
@@ -6157,7 +6221,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       savePageCache(state.pageCache);
     }
   }
-  function generateSingleSlotImage(slot, dateStr, postToIframe3, onDone) {
+  function generateSingleSlotImage(slot, dateStr, postToIframe2, onDone) {
     var settings = state.settings;
     var targetUrl = slot.targetUrl || state.currentNavigationUrl || getCurrentEntry2() && getCurrentEntry2().url;
     var targetDate = dateStr || slot.targetDate || state.currentNavigationDate || getCurrentEntry2() && getCurrentEntry2().date;
@@ -6166,7 +6230,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
     var imgProvider = getEffectiveImageProvider(settings, settings.imageProvider, settings.pageProvider, activeEngine);
     if (!hasValidCredentials(settings, imgProvider)) {
       if (targetUrl === state.currentNavigationUrl) {
-        postToIframe3({
+        postToIframe2({
           type: "DREAM_IMAGE_STATUS",
           slotId: slot.slotId,
           statusText: "\u26A0\uFE0F No API Key"
@@ -6199,7 +6263,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       var cachedData = state.imageMemoryCache[promptCacheKey];
       patchCachedHtmlWithImage(targetUrl, targetDate, slot.slotId, cachedData, slot.prompt, activeEngine);
       if (targetUrl === state.currentNavigationUrl) {
-        postToIframe3({
+        postToIframe2({
           type: "DREAM_IMAGE_READY",
           slotId: slot.slotId,
           dataUrl: cachedData,
@@ -6210,7 +6274,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       return;
     }
     if (targetUrl === state.currentNavigationUrl) {
-      postToIframe3({
+      postToIframe2({
         type: "DREAM_IMAGE_STATUS",
         slotId: slot.slotId,
         statusText: styleMode === "pixel" ? "\u{1F47E} Drawing Pixel Art..." : styleMode === "svg" ? "\u2728 Drawing Vector SVG..." : "\u23F3 Generating..."
@@ -6256,7 +6320,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
                 other.inFlight = false;
                 patchCachedHtmlWithImage(targetUrl, targetDate, other.slotId, dataUrl, slot.prompt, activeEngine);
                 if (isCurrent) {
-                  postToIframe3({
+                  postToIframe2({
                     type: "DREAM_IMAGE_READY",
                     slotId: other.slotId,
                     dataUrl,
@@ -6268,7 +6332,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
           }
         }
         if (isCurrent) {
-          postToIframe3({
+          postToIframe2({
             type: "DREAM_IMAGE_READY",
             slotId: slot.slotId,
             dataUrl,
@@ -6277,7 +6341,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
         }
       } else {
         if (isCurrent) {
-          postToIframe3({
+          postToIframe2({
             type: "DREAM_IMAGE_STATUS",
             slotId: slot.slotId,
             statusText: "\u26A0\uFE0F Retry Image"
@@ -6341,7 +6405,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       }, handleResult);
     }
   }
-  function handleDiscoveredImages(slots, dateStr, postToIframe3, onStatusUpdate, pageUrl) {
+  function handleDiscoveredImages(slots, dateStr, postToIframe2, onStatusUpdate, pageUrl) {
     var curEntry = getCurrentEntry2();
     var targetUrl = pageUrl || curEntry && curEntry.url || state.currentNavigationUrl;
     var targetDate = dateStr || curEntry && curEntry.date || state.currentNavigationDate;
@@ -6395,7 +6459,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
             }
             if (cachedDataUrl) {
               sl.alreadyLoaded = true;
-              postToIframe3({
+              postToIframe2({
                 type: "DREAM_IMAGE_READY",
                 slotId: sl.slotId,
                 dataUrl: cachedDataUrl
@@ -6420,7 +6484,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
             if (matchedDomainImg && matchedDomainImg.dataUrl) {
               dSlot.alreadyLoaded = true;
               patchCachedHtmlWithImage(targetUrl, targetDate, dSlot.slotId, matchedDomainImg.dataUrl, matchedDomainImg.prompt || dSlot.prompt, slotEngine);
-              postToIframe3({
+              postToIframe2({
                 type: "DREAM_IMAGE_READY",
                 slotId: dSlot.slotId,
                 dataUrl: matchedDomainImg.dataUrl
@@ -6485,7 +6549,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       slotItem.targetUrl = targetUrl;
       slotItem.targetDate = targetDate;
       slotItem.epoch = currentEpoch;
-      generateSingleSlotImage(slotItem, targetDate, postToIframe3, /* @__PURE__ */ (function(item) {
+      generateSingleSlotImage(slotItem, targetDate, postToIframe2, /* @__PURE__ */ (function(item) {
         return function() {
           item.inFlight = false;
           item.alreadyLoaded = true;
@@ -6980,7 +7044,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
   }
 
   // build-stamp:build-stamp
-  var BUILD_TIME = "2026-11-01T04:08:56.845Z";
+  var BUILD_TIME = "2026-11-01T16:01:14.222Z";
 
   // src/ui/settings-modal.js
   var OTHER = "__other__";
@@ -7651,18 +7715,10 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
   }
 
   // src/core/navigation.js
-  function postToIframe(message) {
-    if (els.dreamFrame && els.dreamFrame.contentWindow) {
-      els.dreamFrame.contentWindow.postMessage(message, "*");
-    }
-  }
   function cancelActiveGeneration() {
     if (state.activeStreamWriter) {
       try {
         state.activeStreamWriter.close();
-        if (state.activeStreamWriter.doc && state.currentNavigationUrl) {
-          ensureBridgeInDocument(state.activeStreamWriter.doc, state.currentNavigationUrl, state.currentNavigationDate, state.activeBrowserProfile);
-        }
       } catch (e) {
       }
       state.activeStreamWriter = null;
@@ -7852,22 +7908,23 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
           els.dreamFrame.hidden = false;
           if (els.homeScreen) els.homeScreen.hidden = true;
           try {
-            if (els.dreamFrame.contentDocument) {
-              var substitutedJs = runtime_runtime_default.replace(
-                "__BASE_URL__",
-                JSON.stringify(normalizedUrl || "http://www.example.com/")
-              );
-              streamWriter = new ProgressiveHtmlWriter(els.dreamFrame.contentDocument, {
-                initialStyle: bridge_runtime_default,
-                initialEraStyle: buildEraStylesheetCss(profileId),
-                initialScript: substitutedJs,
-                onImageRendered: function(slot) {
-                  handleDiscoveredImages([slot], dateStr, postToIframe, setStatusImages, normalizedUrl);
-                }
-              });
-              streamWriter.open();
-              state.activeStreamWriter = streamWriter;
-            }
+            var substitutedJs = runtime_runtime_default.replace(
+              "__BASE_URL__",
+              JSON.stringify(normalizedUrl || "http://www.example.com/")
+            );
+            var streamSink = createFrameStreamSink(
+              els.dreamFrame,
+              "dream-stream-" + state.navigationEpoch + "-" + Date.now()
+            );
+            els.dreamFrame.srcdoc = buildStreamShell();
+            streamWriter = new ProgressiveHtmlWriter(streamSink, {
+              initialShim: storage_shim_runtime_default,
+              initialStyle: bridge_runtime_default,
+              initialEraStyle: buildEraStylesheetCss(profileId),
+              initialScript: substitutedJs
+            });
+            streamWriter.open();
+            state.activeStreamWriter = streamWriter;
           } catch (e) {
             console.warn("Could not open iframe for progressive streaming:", e);
             streamWriter = null;
@@ -7923,7 +7980,6 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
           if (error) {
             if (streamWriter && streamWriter.written && streamWriter.written.length > 0) {
               streamWriter.close();
-              ensureBridgeInDocument(streamWriter.doc, normalizedUrl, dateStr, profileId);
               setStatusProgress(null);
               setStatusText("Stopped receiving " + hostName + " (" + error + ")");
               return;
@@ -7973,7 +8029,6 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
           state.currentNavigationDate = dateStr;
           if (streamWriter && streamWriter.hasOpened) {
             streamWriter.close();
-            ensureBridgeInDocument(streamWriter.doc, normalizedUrl, dateStr, profileId);
             var winTitle = document.getElementById("window-title");
             if (winTitle) winTitle.textContent = pageTitle + " - " + era.browserName;
             if (typeof document !== "undefined") {
@@ -8420,7 +8475,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
   }
 
   // src/main.js
-  function postToIframe2(message) {
+  function postToIframe(message) {
     if (els.dreamFrame && els.dreamFrame.contentWindow) {
       els.dreamFrame.contentWindow.postMessage(message, "*");
     }
@@ -8660,7 +8715,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
           });
         }
       } else if (msg.type === "DREAM_IMAGES_DISCOVERED") {
-        handleDiscoveredImages(msg.slots || [], els.dateInput.value, postToIframe2, setStatusImages, msg.url);
+        handleDiscoveredImages(msg.slots || [], els.dateInput.value, postToIframe, setStatusImages, msg.url);
       } else if (msg.type === "DREAM_GENERATE_SINGLE_IMAGE") {
         setStatusImages("\u{1F5BC}\uFE0F Generating image...");
         var curUrl = msg.url || state.currentNavigationUrl || getCurrentEntry() && getCurrentEntry().url;
@@ -8683,7 +8738,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
           targetDate: curDate,
           epoch: state.navigationEpoch,
           forceRegenerate: true
-        }, curDate, postToIframe2, function() {
+        }, curDate, postToIframe, function() {
           setStatusImages("\u{1F5BC}\uFE0F Image updated");
         });
       }
@@ -8741,7 +8796,11 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
     resolveTimePeriod,
     makeDomainImageKey,
     injectBridgeScript,
-    ensureBridgeInDocument,
+    buildStreamShell,
+    storageShimJs: storage_shim_runtime_default,
+    streamSinkJs: stream_sink_runtime_default,
+    createFrameStreamSink,
+    STREAM_MSG,
     buildEraStylesheetCss,
     parseBrowserProfileFromPlan,
     ProgressiveHtmlWriter,
