@@ -70,6 +70,19 @@ export function buildFallbackArtSvg(opts) {
       "<circle cx=\"16\" cy=\"16\" r=\"5\" fill=\"#e2e8f0\"/></svg>";
   }
 
+  if (role === "graphic") {
+    return "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 " + dims.width + " " + dims.height +
+      "\" width=\"" + dims.width + "\" height=\"" + dims.height + "\">" +
+      "<rect x=\"4\" y=\"4\" width=\"" + Math.max(8, dims.width - 8) + "\" height=\"" + Math.max(8, dims.height - 8) +
+      "\" rx=\"6\" fill=\"#1e293b\" stroke=\"#64748b\" stroke-width=\"2\"/>" +
+      "<circle cx=\"" + Math.round(dims.width * 0.3) + "\" cy=\"" + Math.round(dims.height * 0.5) +
+      "\" r=\"" + Math.max(4, Math.round(Math.min(dims.width, dims.height) * 0.18)) + "\" fill=\"#93c5fd\"/>" +
+      "<text x=\"" + Math.round(dims.width * 0.56) + "\" y=\"" + Math.round(dims.height * 0.54) +
+      "\" text-anchor=\"middle\" dominant-baseline=\"middle\" font-family=\"Verdana, sans-serif\" font-weight=\"bold\" font-size=\"" +
+      Math.max(7, Math.round(dims.height * 0.16)) + "\" fill=\"#ffffff\">" + shortTitle.substring(0, 16) + "</text>" +
+      "</svg>";
+  }
+
   if (styleMode === "pixel") {
     var gw = dims.gridW;
     var gh = dims.gridH;

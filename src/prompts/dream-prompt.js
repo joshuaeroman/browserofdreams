@@ -53,17 +53,31 @@ export function buildDreamPrompt(params) {
   var yyyy = parts[0] || "2001";
   var formattedDateUs = mm + "/" + dd + "/" + yyyy;
 
-  var imageRules = imageMode === "off"
-    ? "Visuals: inline SVG, CSS, or ASCII. No data-dream-prompt images. Spoof marks and unnamed figures only."
-    : "Images: 4–8 <img> (max 12). At least one " + era.year + " ad (468×60, 300×250, or 120×240/160×600) inside <a href>. Photos use data-dream-role=\"photo\".\n" +
-      "Up to 3 small interface icons use data-dream-role=\"icon\", width=\"32\" height=\"32\", data-dream-aspect=\"1:1\".\n" +
+  var imageRules;
+  if (imageMode === "off") {
+    imageRules = "Visuals: inline SVG, CSS, or ASCII. No data-dream-prompt images. Spoof marks and unnamed figures only.";
+  } else {
+    var engine = String(params.imageEngine || "image-model");
+    var maxImages = parseInt(params.maxImagesPerPage, 10) || 12;
+    var allSvg = engine === "text-pixel" || engine === "text-svg" || engine === "text-auto";
+    var imageBudget = allSvg
+      ? "Images: 4–8 <img> — unlimited ads, photos, icons, and graphics."
+      : (engine === "hybrid"
+        ? "Images: no more than " + maxImages + " photos — unlimited ads, icons, and graphics."
+        : "Images: no more than " + maxImages + " total — photos, ads, icons, and graphics share that cap.");
+    imageRules = imageBudget + "\n" +
+      "At least one " + era.year + " ad (468×60, 300×250, or 120×240/160×600) inside <a href>. Photos use data-dream-role=\"photo\".\n" +
+      "Small interface icons use data-dream-role=\"icon\", width=\"32\" height=\"32\", data-dream-aspect=\"1:1\".\n" +
+      "Generic graphics — a page logo, masthead emblem, or decorative spot art — use data-dream-role=\"graphic\".\n" +
       "Article text may name real people and companies. data-dream-prompt may not: spoof brands only, and people only as generic roles (a reporter, a crowd, an athlete). No real logos, celebrity names, or likenesses.\n" +
       "Every new image: data-dream-prompt=\"[Date: " + formattedDateUs + "] subject, " + era.year + " style\" plus data-dream-role, data-dream-aspect, width, height, alt.\n" +
       "data-dream-aspect is only 21:9, 16:9, 4:3, 1:1, 3:4, 9:16, 3:2, or 2:3. Example: <img data-dream-prompt=\"[Date: " + formattedDateUs + "] spoof-brand banner, unnamed shoppers\" data-dream-role=\"ad\" data-dream-aspect=\"21:9\" width=\"468\" height=\"60\" alt=\"...\">\n" +
       "Icon example: <img data-dream-prompt=\"[Date: " + formattedDateUs + "] spoof-brand envelope icon, flat glyph\" data-dream-role=\"icon\" data-dream-aspect=\"1:1\" width=\"32\" height=\"32\" alt=\"Mail\">\n" +
+      "Graphic example: <img data-dream-prompt=\"[Date: " + formattedDateUs + "] spoof-brand masthead emblem, bold wordmark\" data-dream-role=\"graphic\" data-dream-aspect=\"4:3\" width=\"240\" height=\"180\" alt=\"...\">\n" +
       (availableImagesListText
         ? "Reuse a listed image with data-dream-reuse=\"[TYPE: Label, orientation, WxH]\" or its id. Example: <img data-dream-reuse=\"[AD: Snapple, vertical, 100x300]\" width=\"100\" height=\"300\" alt=\"Snapple\">. New slots still use data-dream-prompt."
         : "No cached images yet. Do not emit data-dream-reuse.");
+  }
 
   var continuity = "";
   if (hasHomepageContext) {

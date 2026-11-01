@@ -854,6 +854,16 @@ var BrowserOfDreamsBundle = (() => {
     _internalDomainCache = _internalDomainCache || {};
     return _internalDomainCache;
   }
+  function resetDomainImageCache() {
+    _internalDomainCache = null;
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.removeItem(STORAGE_KEY_DOMAIN_IMAGES);
+      }
+    } catch (e) {
+    }
+    return {};
+  }
   function saveDomainImageCache(domainImageCache) {
     var target = domainImageCache || _internalDomainCache;
     if (!target) return;
@@ -932,7 +942,7 @@ var BrowserOfDreamsBundle = (() => {
         return brand.charAt(0).toUpperCase() + brand.slice(1);
       }
     }
-    return role === "ad" ? "Advertisement" : role === "icon" ? "Icon" : "Editorial Photo";
+    return role === "ad" ? "Advertisement" : role === "icon" ? "Icon" : role === "graphic" ? "Graphic" : "Editorial Photo";
   }
   function isImageCacheEngineCompatible(item, engine) {
     var requested = String(engine || "").trim();
@@ -945,7 +955,7 @@ var BrowserOfDreamsBundle = (() => {
   function formatImageDescriptor(item) {
     if (!item) return "";
     var normalizedRole = (item.role || "photo").toLowerCase();
-    var role = normalizedRole === "ad" ? "AD" : normalizedRole === "icon" ? "ICON" : "PHOTO";
+    var role = normalizedRole === "ad" ? "AD" : normalizedRole === "icon" ? "ICON" : normalizedRole === "graphic" ? "GRAPHIC" : "PHOTO";
     var label = item.label || extractImageLabel(item.prompt, item.alt, item.domain, normalizedRole);
     var w = parseInt(item.width, 10) || (role === "AD" ? 468 : role === "ICON" ? 32 : 400);
     var h = parseInt(item.height, 10) || (role === "AD" ? 60 : role === "ICON" ? 32 : 300);
@@ -979,7 +989,7 @@ var BrowserOfDreamsBundle = (() => {
     cache[cacheKey] = cache[cacheKey] || [];
     var list = cache[cacheKey];
     var normalizedRole = String(item.role || "photo").toLowerCase();
-    var role = normalizedRole === "ad" || normalizedRole === "icon" ? normalizedRole : "photo";
+    var role = normalizedRole === "ad" || normalizedRole === "icon" || normalizedRole === "graphic" ? normalizedRole : "photo";
     var w = parseInt(item.width, 10) || (role === "ad" ? 468 : role === "icon" ? 32 : 400);
     var h = parseInt(item.height, 10) || (role === "ad" ? 60 : role === "icon" ? 32 : 300);
     var orientation = item.orientation || getOrientation(w, h);
@@ -1354,7 +1364,7 @@ var BrowserOfDreamsBundle = (() => {
           var reuse = img.getAttribute("data-dream-reuse") || "";
           var slotId = img.getAttribute("data-dream-id") || "dream-img-" + this.imageCounter++;
           img.setAttribute("data-dream-id", slotId);
-          var role = (img.getAttribute("data-dream-role") || (reuse && reuse.toUpperCase().startsWith("[AD") ? "ad" : "photo")).toLowerCase();
+          var role = (img.getAttribute("data-dream-role") || (reuse && /^\[AD\b/i.test(reuse.trim()) ? "ad" : reuse && /^\[ICON\b/i.test(reuse.trim()) ? "icon" : reuse && /^\[GRAPHIC\b/i.test(reuse.trim()) ? "graphic" : "photo")).toLowerCase();
           var w = parseInt(img.getAttribute("width"), 10) || img.width || (role === "ad" ? 468 : 360);
           var h = parseInt(img.getAttribute("height"), 10) || img.height || (role === "ad" ? 60 : 240);
           var aspect = img.getAttribute("data-dream-aspect") || (w > h * 1.5 ? "16:9" : h > w * 1.3 ? "3:4" : "1:1");
@@ -1703,7 +1713,16 @@ var BrowserOfDreamsBundle = (() => {
     var dd = parts[2] ? parseInt(parts[2], 10) < 10 ? "0" + parseInt(parts[2], 10) : parts[2] : "01";
     var yyyy = parts[0] || "2001";
     var formattedDateUs = mm + "/" + dd + "/" + yyyy;
-    var imageRules = imageMode === "off" ? "Visuals: inline SVG, CSS, or ASCII. No data-dream-prompt images. Spoof marks and unnamed figures only." : "Images: 4\u20138 <img> (max 12). At least one " + era.year + ' ad (468\xD760, 300\xD7250, or 120\xD7240/160\xD7600) inside <a href>. Photos use data-dream-role="photo".\nUp to 3 small interface icons use data-dream-role="icon", width="32" height="32", data-dream-aspect="1:1".\nArticle text may name real people and companies. data-dream-prompt may not: spoof brands only, and people only as generic roles (a reporter, a crowd, an athlete). No real logos, celebrity names, or likenesses.\nEvery new image: data-dream-prompt="[Date: ' + formattedDateUs + "] subject, " + era.year + ' style" plus data-dream-role, data-dream-aspect, width, height, alt.\ndata-dream-aspect is only 21:9, 16:9, 4:3, 1:1, 3:4, 9:16, 3:2, or 2:3. Example: <img data-dream-prompt="[Date: ' + formattedDateUs + '] spoof-brand banner, unnamed shoppers" data-dream-role="ad" data-dream-aspect="21:9" width="468" height="60" alt="...">\nIcon example: <img data-dream-prompt="[Date: ' + formattedDateUs + '] spoof-brand envelope icon, flat glyph" data-dream-role="icon" data-dream-aspect="1:1" width="32" height="32" alt="Mail">\n' + (availableImagesListText ? 'Reuse a listed image with data-dream-reuse="[TYPE: Label, orientation, WxH]" or its id. Example: <img data-dream-reuse="[AD: Snapple, vertical, 100x300]" width="100" height="300" alt="Snapple">. New slots still use data-dream-prompt.' : "No cached images yet. Do not emit data-dream-reuse.");
+    var imageRules;
+    if (imageMode === "off") {
+      imageRules = "Visuals: inline SVG, CSS, or ASCII. No data-dream-prompt images. Spoof marks and unnamed figures only.";
+    } else {
+      var engine = String(params.imageEngine || "image-model");
+      var maxImages = parseInt(params.maxImagesPerPage, 10) || 12;
+      var allSvg = engine === "text-pixel" || engine === "text-svg" || engine === "text-auto";
+      var imageBudget = allSvg ? "Images: 4\u20138 <img> \u2014 unlimited ads, photos, icons, and graphics." : engine === "hybrid" ? "Images: no more than " + maxImages + " photos \u2014 unlimited ads, icons, and graphics." : "Images: no more than " + maxImages + " total \u2014 photos, ads, icons, and graphics share that cap.";
+      imageRules = imageBudget + "\nAt least one " + era.year + ' ad (468\xD760, 300\xD7250, or 120\xD7240/160\xD7600) inside <a href>. Photos use data-dream-role="photo".\nSmall interface icons use data-dream-role="icon", width="32" height="32", data-dream-aspect="1:1".\nGeneric graphics \u2014 a page logo, masthead emblem, or decorative spot art \u2014 use data-dream-role="graphic".\nArticle text may name real people and companies. data-dream-prompt may not: spoof brands only, and people only as generic roles (a reporter, a crowd, an athlete). No real logos, celebrity names, or likenesses.\nEvery new image: data-dream-prompt="[Date: ' + formattedDateUs + "] subject, " + era.year + ' style" plus data-dream-role, data-dream-aspect, width, height, alt.\ndata-dream-aspect is only 21:9, 16:9, 4:3, 1:1, 3:4, 9:16, 3:2, or 2:3. Example: <img data-dream-prompt="[Date: ' + formattedDateUs + '] spoof-brand banner, unnamed shoppers" data-dream-role="ad" data-dream-aspect="21:9" width="468" height="60" alt="...">\nIcon example: <img data-dream-prompt="[Date: ' + formattedDateUs + '] spoof-brand envelope icon, flat glyph" data-dream-role="icon" data-dream-aspect="1:1" width="32" height="32" alt="Mail">\nGraphic example: <img data-dream-prompt="[Date: ' + formattedDateUs + '] spoof-brand masthead emblem, bold wordmark" data-dream-role="graphic" data-dream-aspect="4:3" width="240" height="180" alt="...">\n' + (availableImagesListText ? 'Reuse a listed image with data-dream-reuse="[TYPE: Label, orientation, WxH]" or its id. Example: <img data-dream-reuse="[AD: Snapple, vertical, 100x300]" width="100" height="300" alt="Snapple">. New slots still use data-dream-prompt.' : "No cached images yet. Do not emit data-dream-reuse.");
+    }
     var continuity = "";
     if (hasHomepageContext) {
       continuity += "site_homepage is the design system: same name, masthead, CSS, nav, footer, and ongoing stories. Replace only the body for " + url + " and mark the active nav item.\n";
@@ -1796,7 +1815,7 @@ BROWSER PROFILE: the visitor's browser is part of the design. Pick the one this 
 Options: ` + browserMenu + `
 The viewer supplies that browser's own text, link, and form-control styling; design the rest around it. Choose none only if this site should take the viewer's own defaults.
 
-COVER AT LEAST: the site's name and one-sentence concept; palette with concrete colors; typography; page framing and layout approach; masthead/header treatment; navigation placement and style; body column layout with sidebars; recurring widgets and interactive elements; imagery and advertising direction (what the recurring photos, ads, and icons show, and where they sit); footer; and a sitemap listing each page's path, navigation label, and purpose, starting with "/" for the homepage.
+COVER AT LEAST: the site's name and one-sentence concept; palette with concrete colors; typography; page framing and layout approach; masthead/header treatment; navigation placement and style; body column layout with sidebars; recurring widgets and interactive elements; imagery and advertising direction (what the recurring photos, ads, icons, and graphics show, and where they sit); footer; and a sitemap listing each page's path, navigation label, and purpose, starting with "/" for the homepage.
 
 DESCRIBE, DO NOT PRESCRIBE. The page generator chooses every implementation detail.
 In this plan, never write: HTML, CSS, JavaScript, tags, attributes, properties, code of any kind, image file names, asset paths, image URLs, pixel measurements, or fixed counts of elements. Say what the visitor sees, not how to build it.
@@ -1912,7 +1931,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       }
       var slotId = img.getAttribute('data-dream-id') || ('dream-img-' + i);
       img.setAttribute('data-dream-id', slotId);
-      var role = (img.getAttribute('data-dream-role') || (reuse && reuse.toUpperCase().startsWith('[AD') ? 'ad' : 'photo')).toLowerCase();
+      var role = (img.getAttribute('data-dream-role') || (reuse && /^\\[AD\\b/i.test(reuse.trim()) ? 'ad' : (reuse && /^\\[ICON\\b/i.test(reuse.trim()) ? 'icon' : (reuse && /^\\[GRAPHIC\\b/i.test(reuse.trim()) ? 'graphic' : 'photo')))).toLowerCase();
       var w = parseInt(img.getAttribute('width'), 10) || img.width || (role === 'ad' ? 468 : (role === 'icon' ? 32 : 360));
       var h = parseInt(img.getAttribute('height'), 10) || img.height || (role === 'ad' ? 60 : (role === 'icon' ? 32 : 240));
       if (!img.getAttribute('width') && w > 0) {
@@ -1936,7 +1955,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
         badge.type = 'button';
         badge.className = 'dream-img-badge';
         badge.setAttribute('data-badge-for', slotId);
-        badge.textContent = alreadyLoaded ? '\u21BB Redream' : '\u{1F3A8} Dream ' + (role === 'ad' ? 'Ad' : (role === 'icon' ? 'Icon' : 'Photo'));
+        badge.textContent = alreadyLoaded ? '\u21BB Redream' : '\u{1F3A8} Dream ' + (role === 'ad' ? 'Ad' : (role === 'icon' ? 'Icon' : (role === 'graphic' ? 'Graphic' : 'Photo')));
         badge.title = prompt || reuse || '';
         badge.addEventListener('click', (function(sId, p, re, r, a, sw, sh) {
           return function(ev) {
@@ -4873,11 +4892,11 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
     var timelineProfile = getTimelineDivergenceProfile(o.timelineDivergence, era.year);
     var styleMode = o.styleMode || resolveTextArtStyleMode(o.imageEngine || "text-pixel", era.year);
     var dims = computePixelGridDimensions(o.width, o.height, role, o.aspectRatio);
-    var roleNoun = role === "ad" ? "web ad" : role === "icon" ? "icon" : "editorial";
-    var promptText = String(o.prompt || (role === "ad" ? "Vintage web banner advertisement" : role === "icon" ? "Small interface icon glyph" : "Editorial illustration")).trim();
+    var roleNoun = role === "ad" ? "web ad" : role === "icon" ? "icon" : role === "graphic" ? "graphic" : "editorial";
+    var promptText = String(o.prompt || (role === "ad" ? "Vintage web banner advertisement" : role === "icon" ? "Small interface icon glyph" : role === "graphic" ? "Page logo or decorative emblem" : "Editorial illustration")).trim();
     if (styleMode === "pixel") {
       var sysPixel = "Output one integer-grid pixel-art <svg>. No markdown.";
-      var userPixel = era.year + " pixel " + roleNoun + ". " + promptText + "\n" + timelineProfile.imageDirective + '\nOpen with <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dims.gridW + " " + dims.gridH + '" width="' + dims.width + '" height="' + dims.height + '" shape-rendering="crispEdges">.\nOnly integer <rect> on a ' + dims.gridW + "\xD7" + dims.gridH + " grid. No circle, ellipse, smooth path, or rx/ry.\n12\u201316 VGA colors, dithered ground, outlined subject, 1px highlights. Spoof brands only. Unnamed generic people. No real logos or public figures. " + (role === "ad" ? 'Bevel (light top/left, dark bottom/right), icon left, Courier headline font-size="' + Math.max(4, Math.round(dims.gridH * 0.34)) + '", [CLICK HERE] button right.' : role === "icon" ? "Single centered glyph on a flat single-color background. No text, no border, no bevel." : "Foreground, midground, and light.") + "\nOnly the <svg>.";
+      var userPixel = era.year + " pixel " + roleNoun + ". " + promptText + "\n" + timelineProfile.imageDirective + '\nOpen with <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dims.gridW + " " + dims.gridH + '" width="' + dims.width + '" height="' + dims.height + '" shape-rendering="crispEdges">.\nOnly integer <rect> on a ' + dims.gridW + "\xD7" + dims.gridH + " grid. No circle, ellipse, smooth path, or rx/ry.\n12\u201316 VGA colors, dithered ground, outlined subject, 1px highlights. Spoof brands only. Unnamed generic people. No real logos or public figures. " + (role === "ad" ? 'Bevel (light top/left, dark bottom/right), icon left, Courier headline font-size="' + Math.max(4, Math.round(dims.gridH * 0.34)) + '", [CLICK HERE] button right.' : role === "icon" ? "Single centered glyph on a flat single-color background. No text, no border, no bevel." : role === "graphic" ? "Flat emblem: one geometric mark plus a short Courier wordmark. Solid fills, no scenery." : "Foreground, midground, and light.") + "\nOnly the <svg>.";
       return {
         styleMode: "pixel",
         dims,
@@ -4886,7 +4905,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       };
     }
     var sysSvg = "Output one era-faithful <svg>. No markdown.";
-    var userSvg = era.year + " vector " + roleNoun + ". " + promptText + "\n" + timelineProfile.imageDirective + '\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dims.width + " " + dims.height + '" width="' + dims.width + '" height="' + dims.height + '">. defs gradients, layered path/polygon/rect/circle. Text stays inside the viewBox. Spoof brands only. Unnamed generic people. No real logos or public figures. ' + (role === "ad" ? "Logo, headline, subcopy, border, and a CLICK HERE / SHOP NOW / LEARN MORE button." : role === "icon" ? "Single centered glyph, flat fills, no text, transparent background." : "Depth, light, and period detail.") + " Only the <svg>.";
+    var userSvg = era.year + " vector " + roleNoun + ". " + promptText + "\n" + timelineProfile.imageDirective + '\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dims.width + " " + dims.height + '" width="' + dims.width + '" height="' + dims.height + '">. defs gradients, layered path/polygon/rect/circle. Text stays inside the viewBox. Spoof brands only. Unnamed generic people. No real logos or public figures. ' + (role === "ad" ? "Logo, headline, subcopy, border, and a CLICK HERE / SHOP NOW / LEARN MORE button." : role === "icon" ? "Single centered glyph, flat fills, no text, transparent background." : role === "graphic" ? "Flat geometric mark with a short wordmark, solid fills, transparent background, no photographic detail." : "Depth, light, and period detail.") + " Only the <svg>.";
     return {
       styleMode: "svg",
       dims,
@@ -5717,6 +5736,9 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       var ih = parseInt(dims.height, 10) || 32;
       return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="' + iw + '" height="' + ih + '"><rect x="6" y="6" width="20" height="20" rx="5" fill="#334155"/><circle cx="16" cy="16" r="5" fill="#e2e8f0"/></svg>';
     }
+    if (role === "graphic") {
+      return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dims.width + " " + dims.height + '" width="' + dims.width + '" height="' + dims.height + '"><rect x="4" y="4" width="' + Math.max(8, dims.width - 8) + '" height="' + Math.max(8, dims.height - 8) + '" rx="6" fill="#1e293b" stroke="#64748b" stroke-width="2"/><circle cx="' + Math.round(dims.width * 0.3) + '" cy="' + Math.round(dims.height * 0.5) + '" r="' + Math.max(4, Math.round(Math.min(dims.width, dims.height) * 0.18)) + '" fill="#93c5fd"/><text x="' + Math.round(dims.width * 0.56) + '" y="' + Math.round(dims.height * 0.54) + '" text-anchor="middle" dominant-baseline="middle" font-family="Verdana, sans-serif" font-weight="bold" font-size="' + Math.max(7, Math.round(dims.height * 0.16)) + '" fill="#ffffff">' + shortTitle.substring(0, 16) + "</text></svg>";
+    }
     if (styleMode === "pixel") {
       var gw = dims.gridW;
       var gh = dims.gridH;
@@ -5924,7 +5946,10 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
     var engine = settings && settings.imageEngine || "image-model";
     if (engine !== "hybrid") return engine;
     var role = String(slot && slot.role || "photo").toLowerCase();
-    return role === "ad" || role === "icon" ? "text-svg" : "image-model";
+    return role === "ad" || role === "icon" || role === "graphic" ? "text-svg" : "image-model";
+  }
+  function slotCountsTowardImageCap(settings, slot) {
+    return resolveSlotImageEngine(settings, slot) === "image-model";
   }
   function resolveActiveTextArtModel(settings, imgProvider) {
     var s = settings || state.settings;
@@ -6055,7 +6080,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
     if (!basePrompt.includes(formattedDateUs)) {
       basePrompt = dateTag + " " + basePrompt;
     }
-    var fullPrompt = basePrompt + " " + era.year + " " + (slot.role === "ad" ? "web ad." : slot.role === "icon" ? "icon." : "editorial photo.") + " " + timelineProfile.imageDirective + " Spoof brands only. Unnamed generic people. No real logos or public figures.";
+    var fullPrompt = basePrompt + " " + era.year + " " + (slot.role === "ad" ? "web ad." : slot.role === "icon" ? "icon." : slot.role === "graphic" ? "graphic." : "editorial photo.") + " " + timelineProfile.imageDirective + " Spoof brands only. Unnamed generic people. No real logos or public figures.";
     var promptCacheKey = imgProvider + "__" + activeEngine + "__" + activeModelId + "__" + timelineProfile.tierKey + "__" + fullPrompt;
     if (slot.forceRegenerate) {
       delete state.imageMemoryCache[promptCacheKey];
@@ -6318,7 +6343,10 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       }
     }
     var maxCount = parseInt(state.settings.maxImagesPerPage, 10) || 12;
-    var inFlightOrLoaded = state.activeImageSlots.filter(function(s2) {
+    var capSlots = state.activeImageSlots.filter(function(s2) {
+      return slotCountsTowardImageCap(state.settings, s2);
+    });
+    var inFlightOrLoaded = capSlots.filter(function(s2) {
       return s2.inFlight || s2.alreadyLoaded;
     }).length;
     var remainingSlotsToStart = Math.max(0, maxCount - inFlightOrLoaded);
@@ -6328,7 +6356,15 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       if (mode === "photos") return slot.role === "photo";
       return true;
     });
-    var toGenerate = newlyEligible.slice(0, remainingSlotsToStart);
+    var toGenerate = [];
+    for (var g = 0; g < newlyEligible.length; g++) {
+      var eligible = newlyEligible[g];
+      if (slotCountsTowardImageCap(state.settings, eligible)) {
+        if (remainingSlotsToStart <= 0) continue;
+        remainingSlotsToStart--;
+      }
+      toGenerate.push(eligible);
+    }
     if (toGenerate.length === 0) {
       updateImagesStatus();
       return;
@@ -6834,7 +6870,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
   }
 
   // build-stamp:build-stamp
-  var BUILD_TIME = "2026-11-01T01:29:03.339Z";
+  var BUILD_TIME = "2026-11-01T02:19:56.280Z";
 
   // src/ui/settings-modal.js
   var OTHER = "__other__";
@@ -7049,9 +7085,9 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
     } else if (engine === "text-auto") {
       els.imageEngineHint.textContent = "Era-adaptive art is drawn by the text model. The Image pair stays hidden.";
     } else if (engine === "hybrid") {
-      els.imageEngineHint.textContent = "Ads and icons are drawn as vector SVG by the text model. Hero and article photos use the Image provider and model below.";
+      els.imageEngineHint.textContent = "Ads, icons, and graphics are drawn as vector SVG by the text model. Hero and article photos use the Image provider and model below.";
     } else {
-      els.imageEngineHint.textContent = "Raster photos and ads use the Image provider and model in the bar below.";
+      els.imageEngineHint.textContent = "Raster photos, ads, icons, and graphics use the Image provider and model in the bar below.";
     }
   }
   function renderProviderList() {
@@ -7739,6 +7775,8 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
           referrerHtml,
           navContext: navCtx,
           imageMode: state.settings.imageMode,
+          imageEngine: state.settings.imageEngine,
+          maxImagesPerPage: state.settings.maxImagesPerPage,
           memes: dayMemes,
           sitePlanText: formatSitePlanForPrompt(planEntry),
           browserProfile: profileId
@@ -7918,6 +7956,8 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
             navContext: navCtx
           },
           imageMode: state.settings.imageMode,
+          imageEngine: state.settings.imageEngine,
+          maxImagesPerPage: state.settings.maxImagesPerPage,
           memes: dayMemes,
           sitePlanText: planText,
           browserProfile: homeProfileId
@@ -8385,13 +8425,12 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
     function clearAllCaches() {
       state.pageCache = {};
       state.imageMemoryCache = {};
-      state.domainImageCache = {};
+      state.domainImageCache = resetDomainImageCache();
       state.sitePlanCache = {};
       clearMemeCache();
       try {
         localStorage.removeItem("browser_of_dreams_pages_v1");
         localStorage.removeItem("browser_of_dreams_memes_v1");
-        localStorage.removeItem("browser_of_dreams_domain_images_v1");
         localStorage.removeItem(STORAGE_KEY_SITE_PLANS);
       } catch (e) {
       }

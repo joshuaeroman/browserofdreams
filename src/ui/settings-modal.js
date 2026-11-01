@@ -259,9 +259,9 @@ function syncImageEngineHint() {
   } else if (engine === "text-auto") {
     els.imageEngineHint.textContent = "Era-adaptive art is drawn by the text model. The Image pair stays hidden.";
   } else if (engine === "hybrid") {
-    els.imageEngineHint.textContent = "Ads and icons are drawn as vector SVG by the text model. Hero and article photos use the Image provider and model below.";
+    els.imageEngineHint.textContent = "Ads, icons, and graphics are drawn as vector SVG by the text model. Hero and article photos use the Image provider and model below.";
   } else {
-    els.imageEngineHint.textContent = "Raster photos and ads use the Image provider and model in the bar below.";
+    els.imageEngineHint.textContent = "Raster photos, ads, icons, and graphics use the Image provider and model in the bar below.";
   }
 }
 

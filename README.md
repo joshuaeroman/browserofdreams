@@ -2,7 +2,8 @@
 
 **A retro web simulator and temporal AI dream engine.** Pick any URL and any date from
 1969 to 2150, and a language model writes an era-appropriate webpage on the fly. An
-image model can add period banner ads, editorial photos, or text-mode art.
+image model can add period banner ads, editorial photos, or generic graphics; the text
+model can draw ads, icons, and graphics as pixel or vector art.
 
 ![Browser of Dreams demo](docs/screenshot.png)
 
@@ -55,8 +56,9 @@ You can configure more than one provider and switch between them at any time.
 
 - **Travel the web.** Enter a URL and a date; the era engine picks a period theme and the
   text model writes matching HTML, CSS, and JavaScript.
-- **Make period imagery.** Use a dedicated image model, or let the text model produce
-  pixel art or SVG.
+- **Make period imagery.** Use a dedicated image model for photos and raster art, or let
+  the text model draw ads, icons, and logos as pixel or SVG art. Only image-model slots
+  count toward the per-page image limit; SVG art is unlimited.
 - **Set the reality dial.** Go from strict historical grounding to alternate-history
   invention.
 - **Watch it stream.** Pages arrive through a dial-up transfer dialog, and Recent History

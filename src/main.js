@@ -5,7 +5,7 @@ import "./styles/index.css";
 import { els, initDOM } from "./ui/dom.js";
 import { state } from "./core/state.js";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./core/settings.js";
-import { loadPageCache, savePageCache, makeCacheKey, loadDomainImageCache, saveDomainImageCache, saveDomainImage, getAvailableDomainImages, findMatchingDomainImage, formatImageDescriptor, resolveTimePeriod, makeDomainImageKey, STORAGE_KEY_SITE_PLANS, loadSitePlanCache, resetSitePlanCache } from "./core/cache.js";
+import { loadPageCache, savePageCache, makeCacheKey, loadDomainImageCache, saveDomainImageCache, saveDomainImage, getAvailableDomainImages, findMatchingDomainImage, formatImageDescriptor, resetDomainImageCache, resolveTimePeriod, makeDomainImageKey, STORAGE_KEY_SITE_PLANS, loadSitePlanCache, resetSitePlanCache } from "./core/cache.js";
 import { getHistoryStack, getHistoryIndex, setHistoryIndex, pushHistory, canGoBack, canGoForward, goBack, goForward, resetHistory } from "./core/history.js";
 import { getEraInfo, applyEraTheme } from "./core/era.js";
 import { getTimelineDivergenceProfile } from "./core/timeline.js";
@@ -180,13 +180,12 @@ export function initApp() {
   function clearAllCaches() {
     state.pageCache = {};
     state.imageMemoryCache = {};
-    state.domainImageCache = {};
+    state.domainImageCache = resetDomainImageCache();
     state.sitePlanCache = {};
     clearMemeCache();
     try {
       localStorage.removeItem("browser_of_dreams_pages_v1");
       localStorage.removeItem("browser_of_dreams_memes_v1");
-      localStorage.removeItem("browser_of_dreams_domain_images_v1");
       localStorage.removeItem(STORAGE_KEY_SITE_PLANS);
     } catch (e) {}
     resetSitePlanCache();

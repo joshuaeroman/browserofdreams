@@ -71,9 +71,10 @@ function configureHybrid(sandbox, overrides) {
   return B;
 }
 
-test("hybrid maps ads and icons to text-svg and photos to image-model", () => {
+test("hybrid maps ads, icons, and graphics to text-svg and photos to image-model", () => {
   assert.equal(resolveSlotImageEngine({ imageEngine: "hybrid" }, { role: "ad" }), "text-svg");
   assert.equal(resolveSlotImageEngine({ imageEngine: "hybrid" }, { role: "icon" }), "text-svg");
+  assert.equal(resolveSlotImageEngine({ imageEngine: "hybrid" }, { role: "graphic" }), "text-svg");
   assert.equal(resolveSlotImageEngine({ imageEngine: "hybrid" }, { role: "photo" }), "image-model");
   assert.equal(resolveSlotImageEngine({ imageEngine: "hybrid" }, {}), "image-model");
   assert.equal(resolveSlotImageEngine({ imageEngine: "text-pixel" }, { role: "icon" }), "text-pixel");
@@ -83,6 +84,10 @@ test("hybrid maps ads and icons to text-svg and photos to image-model", () => {
     formatImageDescriptor({ role: "icon", label: "Mail", width: 32, height: 32 }),
     "[ICON: Mail, square, 32x32]"
   );
+  assert.equal(
+    formatImageDescriptor({ role: "graphic", label: "Masthead", width: 240, height: 180 }),
+    "[GRAPHIC: Masthead, horizontal, 240x180]"
+  );
 
   const iconDims = computePixelGridDimensions(32, 32, "icon", "1:1");
   assert.deepEqual(iconDims, { width: 32, height: 32, gridW: 16, gridH: 16 });
@@ -90,6 +95,10 @@ test("hybrid maps ads and icons to text-svg and photos to image-model", () => {
   const iconPrompts = buildTextArtPrompts({ role: "icon", width: 32, height: 32, styleMode: "svg", dateStr: "1999-05-12" });
   assert.ok(iconPrompts.userPrompt.includes("icon"));
   assert.ok(iconPrompts.userPrompt.includes("transparent background"));
+
+  const graphicPrompts = buildTextArtPrompts({ role: "graphic", width: 240, height: 180, styleMode: "svg", dateStr: "1999-05-12" });
+  assert.ok(graphicPrompts.userPrompt.includes("vector graphic"));
+  assert.ok(graphicPrompts.userPrompt.includes("wordmark"));
 
   const resetHybrid = migrateSettings({
     pageProvider: "commandcode",
@@ -108,15 +117,43 @@ test("hybrid maps ads and icons to text-svg and photos to image-model", () => {
 
   const iconFallback = buildFallbackArtSvg({ role: "icon", width: 32, height: 32, styleMode: "svg" });
   assert.ok(iconFallback.includes('viewBox="0 0 32 32"'));
+  const graphicFallback = buildFallbackArtSvg({ role: "graphic", prompt: "Masthead", width: 240, height: 180, styleMode: "svg" });
+  assert.ok(graphicFallback.includes('viewBox="0 0 240 180"'));
 
-  const dream = buildDreamPrompt({ url: "http://www.snapple.com/", date: "1999-05-12", timelineDivergence: 0, imageMode: "all" });
+  const dream = buildDreamPrompt({
+    url: "http://www.snapple.com/",
+    date: "1999-05-12",
+    timelineDivergence: 0,
+    imageMode: "all",
+    imageEngine: "hybrid",
+    maxImagesPerPage: 5
+  });
   assert.ok(dream.systemPrompt.includes('data-dream-role="icon"'));
+  assert.ok(dream.systemPrompt.includes('data-dream-role="graphic"'));
+  assert.ok(dream.systemPrompt.includes("no more than 5 photos — unlimited ads, icons, and graphics"));
+
+  const rasterDream = buildDreamPrompt({
+    url: "http://www.snapple.com/",
+    date: "1999-05-12",
+    imageMode: "all",
+    imageEngine: "image-model",
+    maxImagesPerPage: 5
+  });
+  assert.ok(rasterDream.systemPrompt.includes("no more than 5 total"));
+
+  const svgDream = buildDreamPrompt({
+    url: "http://www.snapple.com/",
+    date: "1999-05-12",
+    imageMode: "all",
+    imageEngine: "text-svg"
+  });
+  assert.ok(svgDream.systemPrompt.includes("unlimited ads, photos, icons, and graphics"));
 
   const html = fs.readFileSync(path.resolve("index.html"), "utf8");
   assert.ok(html.includes('<option value="hybrid">'));
 });
 
-test("hybrid routes ads and icons to text SVG and photos to the image model", () => {
+test("hybrid routes ads, icons, and graphics to text SVG and photos to the image model", () => {
   const sandbox = loadBundleSandbox();
   const B = configureHybrid(sandbox);
 
@@ -137,36 +174,88 @@ test("hybrid routes ads and icons to text SVG and photos to the image model", ()
   B.handleDiscoveredImages([
     { slotId: "ad1", prompt: "spoof soda banner", role: "ad", width: 468, height: 60, aspectRatio: "21:9" },
     { slotId: "ph1", prompt: "city hall hero photo", role: "photo", width: 400, height: 300, aspectRatio: "4:3" },
-    { slotId: "ic1", prompt: "envelope mail icon", role: "icon", width: 32, height: 32, aspectRatio: "1:1" }
+    { slotId: "ic1", prompt: "envelope mail icon", role: "icon", width: 32, height: 32, aspectRatio: "1:1" },
+    { slotId: "gf1", prompt: "masthead emblem", role: "graphic", width: 240, height: 180, aspectRatio: "4:3" }
   ], "1999-05-12", post, () => {}, "http://www.snapple.com/");
 
-  assert.equal(artCalls.length, 2, "ad and icon must both use the text art engine");
+  assert.equal(artCalls.length, 3, "ad, icon, and graphic must all use the text art engine");
   const adCall = artCalls.find((c) => c.role === "ad");
   const iconCall = artCalls.find((c) => c.role === "icon");
-  assert.ok(adCall && iconCall);
+  const graphicCall = artCalls.find((c) => c.role === "graphic");
+  assert.ok(adCall && iconCall && graphicCall);
   assert.equal(adCall.styleMode, "svg");
   assert.ok(adCall.prompt.includes("web ad"));
   assert.equal(iconCall.styleMode, "svg");
+  assert.equal(graphicCall.styleMode, "svg");
+  assert.ok(graphicCall.prompt.includes("graphic"));
   assert.equal(adCall.provider, "commandcode");
   assert.equal(adCall.model, "deepseek/deepseek-v4.1-flash");
   assert.equal(iconCall.provider, "commandcode");
   assert.equal(iconCall.model, "deepseek/deepseek-v4.1-flash");
+  assert.equal(graphicCall.provider, "commandcode");
+  assert.equal(graphicCall.model, "deepseek/deepseek-v4.1-flash");
 
   assert.equal(imageCalls.length, 1, "only the photo slot uses the image model");
   assert.equal(imageCalls[0].model, "openai/gpt-image-2.5-flare");
   assert.ok(imageCalls[0].prompt.includes("editorial photo"));
 
   const ready = posts.filter((m) => m.type === "DREAM_IMAGE_READY");
-  assert.equal(ready.length, 3);
+  assert.equal(ready.length, 4);
   const readyById = {};
   ready.forEach((m) => { readyById[m.slotId] = m; });
   assert.ok(readyById.ad1.dataUrl.startsWith("data:image/svg+xml"));
   assert.ok(readyById.ic1.dataUrl.startsWith("data:image/svg+xml"));
+  assert.ok(readyById.gf1.dataUrl.startsWith("data:image/svg+xml"));
   assert.equal(readyById.ph1.dataUrl, "data:image/png;base64,photo");
 
   const statuses = posts.filter((m) => m.type === "DREAM_IMAGE_STATUS").map((m) => m.statusText);
   assert.ok(statuses.includes("✨ Drawing Vector SVG..."));
   assert.ok(statuses.includes("⏳ Generating..."));
+});
+
+test("maxImagesPerPage caps only image-model slots while SVG roles stay unlimited", () => {
+  const sandbox = loadBundleSandbox();
+  const B = configureHybrid(sandbox, { maxImagesPerPage: 2 });
+
+  const artCalls = [];
+  const imageCalls = [];
+  stubAdapters(sandbox, artCalls, imageCalls);
+
+  B.handleDiscoveredImages([
+    { slotId: "ph1", prompt: "photo one", role: "photo", width: 400, height: 300, aspectRatio: "4:3" },
+    { slotId: "ph2", prompt: "photo two", role: "photo", width: 400, height: 300, aspectRatio: "4:3" },
+    { slotId: "ph3", prompt: "photo three", role: "photo", width: 400, height: 300, aspectRatio: "4:3" },
+    { slotId: "ad1", prompt: "ad one", role: "ad", width: 468, height: 60, aspectRatio: "21:9" },
+    { slotId: "ad2", prompt: "ad two", role: "ad", width: 300, height: 250, aspectRatio: "4:3" },
+    { slotId: "ic1", prompt: "icon one", role: "icon", width: 32, height: 32, aspectRatio: "1:1" },
+    { slotId: "gf1", prompt: "graphic one", role: "graphic", width: 240, height: 180, aspectRatio: "4:3" }
+  ], "1999-05-12", () => {}, () => {}, "http://www.snapple.com/");
+
+  assert.equal(imageCalls.length, 2, "the cap stops image-model slots at maxImagesPerPage");
+  assert.equal(artCalls.length, 4, "SVG ads, icons, and graphics never count toward the cap");
+  const artRoles = artCalls.map((c) => c.role).sort();
+  assert.deepEqual(artRoles, ["ad", "ad", "graphic", "icon"]);
+
+  const pending = B.state.activeImageSlots.filter((s) => !s.inFlight && !s.alreadyLoaded);
+  assert.deepEqual(pending.map((s) => s.slotId), ["ph3"], "the over-cap photo stays queued for a later redream");
+});
+
+test("text art engines ignore the image cap", () => {
+  const sandbox = loadBundleSandbox();
+  const B = configureHybrid(sandbox, { imageEngine: "text-svg", maxImagesPerPage: 1 });
+
+  const artCalls = [];
+  const imageCalls = [];
+  stubAdapters(sandbox, artCalls, imageCalls);
+
+  B.handleDiscoveredImages([
+    { slotId: "ph1", prompt: "photo one", role: "photo", width: 400, height: 300, aspectRatio: "4:3" },
+    { slotId: "ph2", prompt: "photo two", role: "photo", width: 400, height: 300, aspectRatio: "4:3" },
+    { slotId: "ph3", prompt: "photo three", role: "photo", width: 400, height: 300, aspectRatio: "4:3" }
+  ], "1999-05-12", () => {}, () => {}, "http://www.snapple.com/");
+
+  assert.equal(artCalls.length, 3, "every slot is SVG, so the image-model cap never applies");
+  assert.equal(imageCalls.length, 0);
 });
 
 test("photo-only mode skips icons and ads mode skips photos under hybrid", () => {

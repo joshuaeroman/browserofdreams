@@ -38,7 +38,7 @@ export function buildSitePlanPrompt(params) {
     "Options: " + browserMenu + "\n" +
     "The viewer supplies that browser's own text, link, and form-control styling; design the rest around it. Choose none only if this site should take the viewer's own defaults.\n" +
     "\n" +
-    "COVER AT LEAST: the site's name and one-sentence concept; palette with concrete colors; typography; page framing and layout approach; masthead/header treatment; navigation placement and style; body column layout with sidebars; recurring widgets and interactive elements; imagery and advertising direction (what the recurring photos, ads, and icons show, and where they sit); footer; and a sitemap listing each page's path, navigation label, and purpose, starting with \"/\" for the homepage.\n" +
+    "COVER AT LEAST: the site's name and one-sentence concept; palette with concrete colors; typography; page framing and layout approach; masthead/header treatment; navigation placement and style; body column layout with sidebars; recurring widgets and interactive elements; imagery and advertising direction (what the recurring photos, ads, icons, and graphics show, and where they sit); footer; and a sitemap listing each page's path, navigation label, and purpose, starting with \"/\" for the homepage.\n" +
     "\n" +
     "DESCRIBE, DO NOT PRESCRIBE. The page generator chooses every implementation detail.\n" +
     "In this plan, never write: HTML, CSS, JavaScript, tags, attributes, properties, code of any kind, image file names, asset paths, image URLs, pixel measurements, or fixed counts of elements. Say what the visitor sees, not how to build it.\n" +

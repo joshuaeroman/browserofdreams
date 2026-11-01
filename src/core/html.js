@@ -109,7 +109,7 @@ export class ProgressiveHtmlWriter {
         var reuse = img.getAttribute("data-dream-reuse") || "";
         var slotId = img.getAttribute("data-dream-id") || ("dream-img-" + this.imageCounter++);
         img.setAttribute("data-dream-id", slotId);
-        var role = (img.getAttribute("data-dream-role") || (reuse && reuse.toUpperCase().startsWith("[AD") ? "ad" : "photo")).toLowerCase();
+        var role = (img.getAttribute("data-dream-role") || (reuse && /^\[AD\b/i.test(reuse.trim()) ? "ad" : (reuse && /^\[ICON\b/i.test(reuse.trim()) ? "icon" : (reuse && /^\[GRAPHIC\b/i.test(reuse.trim()) ? "graphic" : "photo")))).toLowerCase();
         var w = parseInt(img.getAttribute("width"), 10) || img.width || (role === "ad" ? 468 : 360);
         var h = parseInt(img.getAttribute("height"), 10) || img.height || (role === "ad" ? 60 : 240);
         var aspect = img.getAttribute("data-dream-aspect") || (w > h * 1.5 ? "16:9" : (h > w * 1.3 ? "3:4" : "1:1"));
