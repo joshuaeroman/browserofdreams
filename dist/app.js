@@ -5070,7 +5070,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
     var promptText = String(o.prompt || (role === "ad" ? "Vintage web banner advertisement" : role === "icon" ? "Small interface icon glyph" : role === "graphic" ? "Page logo or decorative emblem" : "Editorial illustration")).trim();
     if (styleMode === "pixel") {
       var sysPixel = "Output one integer-grid pixel-art <svg>. No markdown.";
-      var userPixel = era.year + " pixel " + roleNoun + ". " + promptText + "\n" + timelineProfile.imageDirective + '\nOpen with <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dims.gridW + " " + dims.gridH + '" width="' + dims.width + '" height="' + dims.height + '" shape-rendering="crispEdges">.\nOnly integer <rect> on a ' + dims.gridW + "\xD7" + dims.gridH + " grid. No circle, ellipse, smooth path, or rx/ry.\n12\u201316 VGA colors, dithered ground, outlined subject, 1px highlights. Spoof brands only. Unnamed generic people. No real logos or public figures. " + (role === "ad" ? 'Bevel (light top/left, dark bottom/right), icon left, Courier headline font-size="' + Math.max(4, Math.round(dims.gridH * 0.34)) + '", [CLICK HERE] button right.' : role === "icon" ? "Single centered glyph on a flat single-color background. No text, no border, no bevel." : role === "graphic" ? "Flat emblem: one geometric mark plus a short Courier wordmark. Solid fills, no scenery." : "Foreground, midground, and light.") + "\nOnly the <svg>.";
+      var userPixel = era.year + " pixel " + roleNoun + ". " + promptText + "\n" + timelineProfile.imageDirective + '\nOpen with <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dims.gridW + " " + dims.gridH + '" width="' + dims.width + '" height="' + dims.height + '" shape-rendering="crispEdges">.\nOnly integer <rect> on a ' + dims.gridW + "\xD7" + dims.gridH + " grid. No circle, ellipse, smooth path, or rx/ry.\n12\u201316 VGA colors, dithered ground, outlined subject, 1px highlights. Unnamed generic people. No real brands, logos, or public figures. " + (role === "ad" ? 'Bevel (light top/left, dark bottom/right), icon left, Courier headline font-size="' + Math.max(4, Math.round(dims.gridH * 0.34)) + '", [CLICK HERE] button right.' : role === "icon" ? "Single centered glyph on a flat single-color background. No text, no border, no bevel." : role === "graphic" ? "Flat emblem: one geometric mark plus a short Courier wordmark. Solid fills, no scenery." : "Foreground, midground, and light.") + "\nOnly the <svg>.";
       return {
         styleMode: "pixel",
         dims,
@@ -5079,7 +5079,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       };
     }
     var sysSvg = "Output one era-faithful <svg>. No markdown.";
-    var userSvg = era.year + " vector " + roleNoun + ". " + promptText + "\n" + timelineProfile.imageDirective + '\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dims.width + " " + dims.height + '" width="' + dims.width + '" height="' + dims.height + '">. defs gradients, layered path/polygon/rect/circle. Text stays inside the viewBox. Spoof brands only. Unnamed generic people. No real logos or public figures. ' + (role === "ad" ? "Logo, headline, subcopy, border, and a CLICK HERE / SHOP NOW / LEARN MORE button." : role === "icon" ? "Single centered glyph, flat fills, no text, transparent background." : role === "graphic" ? "Flat geometric mark with a short wordmark, solid fills, transparent background, no photographic detail." : "Depth, light, and period detail.") + " Only the <svg>.";
+    var userSvg = era.year + " vector " + roleNoun + ". " + promptText + "\n" + timelineProfile.imageDirective + '\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dims.width + " " + dims.height + '" width="' + dims.width + '" height="' + dims.height + '">. defs gradients, layered path/polygon/rect/circle. Text stays inside the viewBox. Unnamed generic people. No real brands, logos, or public figures. ' + (role === "ad" ? "Logo, headline, subcopy, border, and a CLICK HERE / SHOP NOW / LEARN MORE button." : role === "icon" ? "Single centered glyph, flat fills, no text, transparent background." : role === "graphic" ? "Flat geometric mark with a short wordmark, solid fills, transparent background, no photographic detail." : "Depth, light, and period detail.") + " Only the <svg>.";
     return {
       styleMode: "svg",
       dims,
@@ -6254,7 +6254,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
     if (!basePrompt.includes(formattedDateUs)) {
       basePrompt = dateTag + " " + basePrompt;
     }
-    var fullPrompt = basePrompt + " " + era.year + " " + (slot.role === "ad" ? "web ad." : slot.role === "icon" ? "icon." : slot.role === "graphic" ? "graphic." : "editorial photo.") + " " + timelineProfile.imageDirective + " Spoof brands only. Unnamed generic people. No real logos or public figures.";
+    var fullPrompt = basePrompt + " " + era.year + " " + (slot.role === "ad" ? "web ad." : slot.role === "icon" ? "icon." : slot.role === "graphic" ? "graphic." : "editorial photo.") + " " + timelineProfile.imageDirective + " Unnamed generic people. No real brands, logos, or public figures.";
     var promptCacheKey = imgProvider + "__" + activeEngine + "__" + activeModelId + "__" + timelineProfile.tierKey + "__" + fullPrompt;
     if (slot.forceRegenerate) {
       delete state.imageMemoryCache[promptCacheKey];
@@ -7044,7 +7044,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
   }
 
   // build-stamp:build-stamp
-  var BUILD_TIME = "2026-11-01T16:01:14.222Z";
+  var BUILD_TIME = "2026-11-01T18:52:22.773Z";
 
   // src/ui/settings-modal.js
   var OTHER = "__other__";

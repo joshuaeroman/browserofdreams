@@ -185,7 +185,7 @@ export function generateSingleSlotImage(slot, dateStr, postToIframe, onDone) {
   var fullPrompt = basePrompt + " " + era.year + " " +
     (slot.role === "ad" ? "web ad." : (slot.role === "icon" ? "icon." : (slot.role === "graphic" ? "graphic." : "editorial photo."))) + " " +
     timelineProfile.imageDirective +
-    " Spoof brands only. Unnamed generic people. No real logos or public figures.";
+    " Unnamed generic people. No real brands, logos, or public figures.";
   var promptCacheKey = imgProvider + "__" + activeEngine + "__" + activeModelId + "__" + timelineProfile.tierKey + "__" + fullPrompt;
 
   if (slot.forceRegenerate) {

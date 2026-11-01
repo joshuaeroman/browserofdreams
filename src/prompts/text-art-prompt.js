@@ -67,7 +67,7 @@ export function buildTextArtPrompts(opts) {
       timelineProfile.imageDirective + "\n" +
       "Open with <svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 " + dims.gridW + " " + dims.gridH + "\" width=\"" + dims.width + "\" height=\"" + dims.height + "\" shape-rendering=\"crispEdges\">.\n" +
       "Only integer <rect> on a " + dims.gridW + "×" + dims.gridH + " grid. No circle, ellipse, smooth path, or rx/ry.\n" +
-      "12–16 VGA colors, dithered ground, outlined subject, 1px highlights. Spoof brands only. Unnamed generic people. No real logos or public figures. " +
+      "12–16 VGA colors, dithered ground, outlined subject, 1px highlights. Unnamed generic people. No real brands, logos, or public figures. " +
       (role === "ad"
         ? "Bevel (light top/left, dark bottom/right), icon left, Courier headline font-size=\"" + Math.max(4, Math.round(dims.gridH * 0.34)) + "\", [CLICK HERE] button right."
         : (role === "icon"
@@ -91,7 +91,7 @@ export function buildTextArtPrompts(opts) {
     era.year + " vector " + roleNoun + ". " + promptText + "\n" +
     timelineProfile.imageDirective + "\n" +
     "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 " + dims.width + " " + dims.height + "\" width=\"" + dims.width + "\" height=\"" + dims.height + "\">. " +
-    "defs gradients, layered path/polygon/rect/circle. Text stays inside the viewBox. Spoof brands only. Unnamed generic people. No real logos or public figures. " +
+    "defs gradients, layered path/polygon/rect/circle. Text stays inside the viewBox. Unnamed generic people. No real brands, logos, or public figures. " +
     (role === "ad"
       ? "Logo, headline, subcopy, border, and a CLICK HERE / SHOP NOW / LEARN MORE button."
       : (role === "icon"

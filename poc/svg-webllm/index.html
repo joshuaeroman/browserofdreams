@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebLLM SVG probe</title>
+  <style>
+    html, body { margin: 0; }
+    body {
+      font: 14px/1.5 system-ui, sans-serif;
+      background: #111;
+      color: #e8e8e8;
+      padding: 24px 16px 64px;
+    }
+    main { max-width: 760px; margin: 0 auto; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .note { margin: 0 0 16px; color: #9a9a9a; }
+    .warn {
+      margin: 0 0 16px;
+      padding: 8px 12px;
+      border: 1px solid #a13;
+      background: #2a0d12;
+      color: #ffb3b3;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 12px;
+      margin-bottom: 12px;
+    }
+    .row > label { color: #b8b8b8; }
+    .row.buttons { gap: 8px; }
+    input, select, button {
+      font: inherit;
+      background: #1b1b1b;
+      color: inherit;
+      border: 1px solid #444;
+      border-radius: 3px;
+      padding: 5px 8px;
+    }
+    input[type="text"] { flex: 1 1 320px; }
+    input[type="number"] { width: 84px; }
+    #model { flex: 1 1 320px; min-width: 0; max-width: 100%; }
+    button { cursor: pointer; }
+    button:disabled { opacity: 0.45; cursor: default; }
+    #status { margin: 16px 0 4px; color: #9fd0ff; }
+    .metrics { margin: 0 0 16px; color: #8a8a8a; font-variant-numeric: tabular-nums; }
+    #stage { margin: 0 0 16px; }
+    #stage img {
+      background: #fff;
+      border: 1px solid #444;
+      max-width: 100%;
+      height: auto;
+    }
+    details { margin-top: 8px; }
+    summary { cursor: pointer; color: #b8b8b8; }
+    pre {
+      white-space: pre-wrap;
+      max-height: 240px;
+      overflow: auto;
+      background: #000;
+      color: #8f8;
+      font-size: 12px;
+      padding: 8px;
+      border: 1px solid #333;
+    }
+    textarea {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      margin: 4px 0 10px;
+      font: 12px/1.4 ui-monospace, monospace;
+      background: #1b1b1b;
+      color: inherit;
+      border: 1px solid #444;
+      padding: 6px;
+      resize: vertical;
+    }
+    .inline { display: block; margin-top: 6px; color: #b8b8b8; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>In-browser SVG probe</h1>
+    <p class="note">WebLLM on WebGPU. Serve from a loopback origin or HTTPS.</p>
+    <p id="gpu-notice" class="warn" hidden>This browser does not expose WebGPU — use Chrome/Edge, Safari 26+, or Firefox on Windows/macOS.</p>
+
+    <div class="row">
+      <label for="subject">Subject</label>
+      <input id="subject" type="text" value="a beveled banner ad for a fictional long-distance phone company" spellcheck="false" />
+    </div>
+
+    <div class="row">
+      <label for="role">Role</label>
+      <select id="role">
+        <option value="photo">photo</option>
+        <option value="ad" selected>ad</option>
+        <option value="icon">icon</option>
+        <option value="graphic">graphic</option>
+      </select>
+      <label for="style">Style</label>
+      <select id="style">
+        <option value="svg" selected>svg</option>
+        <option value="pixel">pixel</option>
+      </select>
+      <label for="date">Date</label>
+      <input id="date" type="date" value="1999-12-31" />
+    </div>
+
+    <div class="row">
+      <label for="divergence">Divergence</label>
+      <input id="divergence" type="range" min="0" max="100" step="5" value="0" />
+      <span id="divergence-label">0%</span>
+    </div>
+
+    <div class="row">
+      <label for="width">Width</label>
+      <input id="width" type="number" value="468" min="1" />
+      <label for="height">Height</label>
+      <input id="height" type="number" value="60" min="1" />
+      <label for="model">Model</label>
+      <select id="model"></select>
+    </div>
+    <p id="model-hint" class="metrics"></p>
+
+    <div class="row buttons">
+      <button id="load" type="button">Load model</button>
+      <button id="generate" type="button" disabled>Generate SVG</button>
+      <button id="stop" type="button" disabled>Stop</button>
+      <button id="save" type="button" disabled>Save SVG</button>
+    </div>
+
+    <p id="status" role="status">Idle</p>
+    <p id="metrics" class="metrics"></p>
+    <div id="stage" hidden><img id="result" alt="Generated SVG" /></div>
+
+    <details>
+      <summary>Raw model output</summary>
+      <pre id="raw"></pre>
+    </details>
+
+    <details>
+      <summary>Prompt</summary>
+      <label class="inline"><input id="use-custom" type="checkbox" /> Use this prompt instead of the generated one</label>
+      <label for="sys-text">System</label>
+      <textarea id="sys-text" rows="5" spellcheck="false"></textarea>
+      <label for="user-text">User</label>
+      <textarea id="user-text" rows="4" spellcheck="false"></textarea>
+    </details>
+  </main>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
