@@ -1,12 +1,14 @@
 import { els } from "../ui/dom.js";
 import { state, resetActiveRequest } from "./state.js";
-import { makeCacheKey, savePageCache, findClosestHomepage } from "./cache.js";
+import { makeCacheKey, savePageCache, findClosestHomepage, getCachedSitePlan, saveSitePlan } from "./cache.js";
 import { pushHistory, setHistoryIndex } from "./history.js";
-import { normalizeDreamUrl, getHomepageUrl, isHomepageUrl } from "./urls.js";
+import { normalizeDreamUrl, getHomepageUrl, isHomepageUrl, extractDomain } from "./urls.js";
 import { extractHtml, extractTitleFromHtml, ProgressiveHtmlWriter } from "./html.js";
 import { applyEraTheme, getEraInfo } from "./era.js";
 import { getTimelineDivergenceProfile } from "./timeline.js";
 import { buildDreamPrompt } from "../prompts/dream-prompt.js";
+import { buildSitePlanPrompt, normalizeSitePlan, formatSitePlanForPrompt, MIN_SITE_PLAN_CHARS } from "../prompts/site-plan-prompt.js";
+import { resolveNavigationStages, stageLabel } from "./nav-stages.js";
 import { injectBridgeScript, ensureBridgeInDocument, bridgeCss, bridgeRuntimeJs } from "../bridge/inject.js";
 import { getProvider, hasValidCredentials, resolveConfig } from "../providers/registry.js";
 import { providerById } from "./settings.js";
@@ -99,8 +101,8 @@ function dispatchStreaming(messages, onChunk, onComplete, customOpts) {
     messages: messages,
     temperature: copts.temperature !== undefined ? copts.temperature : settings.temperature,
     maxTokens: copts.maxTokens !== undefined ? copts.maxTokens : 16384,
-    reasoningEffort: copts.homepage ? config.homepageReasoningEffort : config.reasoningEffort,
-    thinkingBudget: config.thinkingBudget || 0,
+    reasoningEffort: copts.sitePlan ? config.sitePlanReasoningEffort : config.reasoningEffort,
+    thinkingBudget: copts.sitePlan ? (config.sitePlanThinkingBudget || 0) : (config.thinkingBudget || 0),
     geminiAuthMethod: config.geminiAuthMethod,
     vertexAuthType: config.vertexAuthType,
     geminiProjectId: config.geminiProjectId,
@@ -228,7 +230,12 @@ export function navigateToDream(rawUrl, dateStr, options) {
       }
     }, 120);
 
+    var planDomain = extractDomain(normalizedUrl) || homepageUrl;
+    var existingPlanEntry = getCachedSitePlan(planDomain, dateStr, state.settings.timelineDivergence);
+    var needsPlan = !existingPlanEntry;
     var needsHomepageFirst = !isHome && (!state.pageCache[homeCacheKey] || !state.pageCache[homeCacheKey].html);
+    var stages = resolveNavigationStages(needsPlan, needsHomepageFirst);
+    var existingHomepageHtml = (state.pageCache[homeCacheKey] && state.pageCache[homeCacheKey].html) || "";
     var priorHomepage = findClosestHomepage(
       state.pageCache,
       homepageUrl,
@@ -236,24 +243,25 @@ export function navigateToDream(rawUrl, dateStr, options) {
       state.settings.timelineDivergence
     );
 
-    function streamTargetPage(resolvedHomepageHtml, isStageTwo) {
-      var stagePrefix = isStageTwo ? "[Stage 2/2] " : "";
+    function streamTargetPage(resolvedHomepageHtml, planEntry) {
+      var stage = stageLabel(stages, "page");
+      var hasPrepStages = stages.length > 1;
       var tlProf = getTimelineDivergenceProfile(state.settings.timelineDivergence, era.year);
 
       showLoadingOverlay({
         eraKey: era.eraKey,
-        dialogTitle: era.browserName + " — " + stagePrefix + "Transferring from " + hostName,
-        headline: stagePrefix + "Contacting host: " + hostName + "...",
+        dialogTitle: era.browserName + " — " + stage + "Transferring from " + hostName,
+        headline: stage + "Contacting host: " + hostName + "...",
         subline: "Temporal coordinates: " + era.formattedLong +
           " • " + tlProf.badgeText +
           (dayMemes && dayMemes.length ? " • 🎭 " + dayMemes.slice(0, 3).join(", ") + "..." : "") +
           (resolvedHomepageHtml && !isHome ? " • Cohesive Site Context Active" : "") +
           " • Model: " + state.settings.pageModel,
-        progressPct: isStageTwo ? 50 : 8,
+        progressPct: hasPrepStages ? 50 : 8,
         bytesText: "0.0 KB received"
       });
 
-      setStatusText(stagePrefix + "Connecting to " + hostName + " (" + era.formattedShort + " • " + tlProf.shortLabel + ")...");
+      setStatusText(stage + "Connecting to " + hostName + " (" + era.formattedShort + " • " + tlProf.shortLabel + ")...");
 
       var streamWriter = null;
       if (els.dreamFrame) {
@@ -293,7 +301,8 @@ export function navigateToDream(rawUrl, dateStr, options) {
         referrerHtml: referrerHtml,
         navContext: navCtx,
         imageMode: state.settings.imageMode,
-        memes: dayMemes
+        memes: dayMemes,
+        sitePlanText: formatSitePlanForPrompt(planEntry)
       });
 
       var messages = [
@@ -304,8 +313,8 @@ export function navigateToDream(rawUrl, dateStr, options) {
       function onStreamChunk(delta, accumulated) {
         firstChunkReceived = true;
         var kb = (accumulated.length / 1024).toFixed(1);
-        var basePct = isStageTwo ? 50 : 10;
-        var spanPct = isStageTwo ? 46 : 85;
+        var basePct = hasPrepStages ? 50 : 10;
+        var spanPct = hasPrepStages ? 46 : 85;
         var pct = Math.min(96, basePct + Math.round((accumulated.length / 7500) * spanPct));
 
         if (streamWriter) {
@@ -313,11 +322,11 @@ export function navigateToDream(rawUrl, dateStr, options) {
         }
 
         updateLoadingOverlayProgress({
-          headline: stagePrefix + "Transferring page from " + hostName + "...",
+          headline: stage + "Transferring page from " + hostName + "...",
           bytesText: kb + " KB received",
           progressPct: pct
         });
-        setStatusText(stagePrefix + "Receiving " + hostName + " (" + kb + " KB transferred)...");
+        setStatusText(stage + "Receiving " + hostName + " (" + kb + " KB transferred)...");
       }
 
       function onStreamComplete(finalText, error) {
@@ -399,21 +408,76 @@ export function navigateToDream(rawUrl, dateStr, options) {
         }
       }
 
-      state.activeRequest = dispatchStreaming(messages, onStreamChunk, onStreamComplete, { homepage: isHome });
+      state.activeRequest = dispatchStreaming(messages, onStreamChunk, onStreamComplete);
     }
 
-    if (needsHomepageFirst) {
+    function streamSitePlan(next) {
+      var stage = stageLabel(stages, "site-plan");
+      var tlProf = getTimelineDivergenceProfile(state.settings.timelineDivergence, era.year);
       showLoadingOverlay({
         eraKey: era.eraKey,
-        dialogTitle: era.browserName + " — [Stage 1/2] Building Site Homepage (" + hostName + ")",
-        headline: "[Stage 1/2] Generating canonical homepage (" + homepageUrl + ")...",
-        subline: "Establishing site branding & layout before rendering " + normalizedUrl,
-        progressPct: 6,
-        bytesText: "0.0 KB (Homepage)",
-        streamPreview: "<!-- [Stage 1/2] Synthesizing root homepage " + homepageUrl + " for cohesive site context... -->"
+        dialogTitle: era.browserName + " — " + stage + "Planning " + hostName,
+        headline: stage + "Drafting site plan for " + hostName + "...",
+        subline: "Temporal coordinates: " + era.formattedLong + " • " + tlProf.badgeText + " • Model: " + state.settings.pageModel,
+        progressPct: 4,
+        bytesText: "0.0 KB (Site Plan)"
       });
+      setStatusText(stage + "Planning " + hostName + "...");
 
-      setStatusText("[Stage 1/2] Generating homepage " + homepageUrl + "...");
+      var bundle = buildSitePlanPrompt({
+        url: normalizedUrl,
+        date: dateStr,
+        timelineDivergence: state.settings.timelineDivergence
+      });
+      var messages = [
+        { role: "system", content: bundle.systemPrompt },
+        { role: "user", content: bundle.userPrompt }
+      ];
+
+      state.activeRequest = dispatchStreaming(messages, function(_delta, accumulated) {
+        firstChunkReceived = true;
+        var kb = (accumulated.length / 1024).toFixed(1);
+        updateLoadingOverlayProgress({
+          headline: stage + "Drafting site plan for " + hostName + "...",
+          bytesText: kb + " KB (Site Plan)",
+          progressPct: Math.min(14, 4 + Math.round((accumulated.length / 3000) * 10))
+        });
+        setStatusText(stage + "Receiving site plan (" + kb + " KB)...");
+      }, function(finalText, error) {
+        state.activeRequest = null;
+        if (error) {
+          cancelActiveGeneration();
+          renderEraErrorPage(normalizedUrl, dateStr, error);
+          return;
+        }
+        var text = normalizeSitePlan(finalText);
+        var cacheable = text.length >= MIN_SITE_PLAN_CHARS;
+        var entry = !text
+          ? null
+          : (cacheable
+              ? saveSitePlan({
+                  domain: planDomain,
+                  date: dateStr,
+                  divergence: state.settings.timelineDivergence,
+                  text: text
+                })
+              : { text: text });
+        next(entry);
+      }, { sitePlan: true });
+    }
+
+    function streamHomepage(planEntry, next) {
+      var stage = stageLabel(stages, "homepage");
+      var planText = formatSitePlanForPrompt(planEntry);
+      showLoadingOverlay({
+        eraKey: era.eraKey,
+        dialogTitle: era.browserName + " — " + stage + "Building Site Homepage (" + hostName + ")",
+        headline: stage + "Generating canonical homepage (" + homepageUrl + ")...",
+        subline: "Establishing site branding & layout before rendering " + normalizedUrl,
+        progressPct: 16,
+        bytesText: "0.0 KB (Homepage)"
+      });
+      setStatusText(stage + "Generating homepage " + homepageUrl + "...");
 
       var homePromptBundle = buildDreamPrompt({
         url: homepageUrl,
@@ -431,54 +495,63 @@ export function navigateToDream(rawUrl, dateStr, options) {
           navContext: navCtx
         },
         imageMode: state.settings.imageMode,
-        memes: dayMemes
+        memes: dayMemes,
+        sitePlanText: planText
       });
-
       var homeMessages = [
         { role: "system", content: homePromptBundle.systemPrompt },
         { role: "user", content: homePromptBundle.userPrompt }
       ];
 
-      state.activeRequest = dispatchStreaming(
-        homeMessages,
-        function(_delta, accumulated) {
-          var kb = (accumulated.length / 1024).toFixed(1);
-          var pct = Math.min(48, 6 + Math.round((accumulated.length / 7500) * 42));
-          updateLoadingOverlayProgress({
-            headline: "[Stage 1/2] Generating site homepage (" + hostName + ")...",
-            bytesText: kb + " KB (Homepage)",
-            progressPct: pct,
-            streamPreview: accumulated.slice(-480)
-          });
-          setStatusText("[Stage 1/2] Receiving homepage " + homepageUrl + " (" + kb + " KB)...");
-        },
-        function(homeFinalText, homeError) {
-          if (homeError) {
-            cancelActiveGeneration();
-            renderEraErrorPage(normalizedUrl, dateStr, homeError);
-            return;
-          }
-          var homeCleanHtml = extractHtml(homeFinalText);
-          if (homeCleanHtml) {
-            state.pageCache[homeCacheKey] = {
-              url: homepageUrl,
-              date: dateStr,
-              title: extractTitleFromHtml(homeCleanHtml, homepageUrl),
-              html: homeCleanHtml,
-              timestamp: Date.now()
-            };
-            savePageCache(state.pageCache);
-            renderRecentHistory(navigateToDream);
-          }
-          streamTargetPage(homeCleanHtml || "", true);
-        },
-        { homepage: true }
-      );
-      return;
+      state.activeRequest = dispatchStreaming(homeMessages, function(_delta, accumulated) {
+        firstChunkReceived = true;
+        var kb = (accumulated.length / 1024).toFixed(1);
+        updateLoadingOverlayProgress({
+          headline: stage + "Generating site homepage (" + hostName + ")...",
+          bytesText: kb + " KB (Homepage)",
+          progressPct: Math.min(48, 16 + Math.round((accumulated.length / 7500) * 32))
+        });
+        setStatusText(stage + "Receiving homepage " + homepageUrl + " (" + kb + " KB)...");
+      }, function(homeFinalText, homeError) {
+        state.activeRequest = null;
+        if (homeError) {
+          cancelActiveGeneration();
+          renderEraErrorPage(normalizedUrl, dateStr, homeError);
+          return;
+        }
+        var homeCleanHtml = extractHtml(homeFinalText);
+        if (homeCleanHtml) {
+          state.pageCache[homeCacheKey] = {
+            url: homepageUrl,
+            date: dateStr,
+            title: extractTitleFromHtml(homeCleanHtml, homepageUrl),
+            html: homeCleanHtml,
+            timestamp: Date.now()
+          };
+          savePageCache(state.pageCache);
+          renderRecentHistory(navigateToDream);
+        }
+        next(homeCleanHtml || "");
+      });
     }
 
-    var existingHomepageHtml = (state.pageCache[homeCacheKey] && state.pageCache[homeCacheKey].html) || "";
-    streamTargetPage(existingHomepageHtml, false);
+    function beginHomepage(planEntry) {
+      if (needsHomepageFirst) {
+        streamHomepage(planEntry, function(homeHtml) {
+          streamTargetPage(homeHtml, planEntry);
+        });
+      } else {
+        streamTargetPage(existingHomepageHtml, planEntry);
+      }
+    }
+
+    if (needsPlan) {
+      streamSitePlan(function(entry) {
+        beginHomepage(entry);
+      });
+    } else {
+      beginHomepage(existingPlanEntry);
+    }
   }
 
   var cachedMemes = getCachedMemesForDate(dateStr);

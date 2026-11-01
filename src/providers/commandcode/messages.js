@@ -1,3 +1,4 @@
+import { outputTokenBudget, effortToThinkingBudget } from "../../core/effort.js";
 import { commandCodeUrl, formatCommandCodeHttpError, isRetryableFieldError } from "./route.js";
 import { readDataLines } from "../sse.js";
 
@@ -54,14 +55,14 @@ export function parseCommandCodeMessageSSE(buffer, lastIndex, final) {
 
 function buildMessageBody(opts, stream, stage) {
   var translated = translateCommandCodeMessages(opts.messages || []);
+  var effort = opts.reasoningEffort || "off";
   var body = {
     model: opts.model || "claude-sonnet-5-5",
-    max_tokens: opts.maxTokens || 16384,
+    max_tokens: outputTokenBudget(opts.maxTokens || 16384, effortToThinkingBudget(effort)),
     messages: translated.messages,
     stream: stream
   };
   if (translated.system) body.system = translated.system;
-  var effort = opts.reasoningEffort || "off";
   var attempt = stage || 0;
   if (attempt === 0) {
     body.thinking = effort === "off" ? { type: "disabled" } : { type: "adaptive" };

@@ -18,6 +18,7 @@ export function buildDreamPrompt(params) {
     params.referrerHtml || (navContext && navContext.referrerHtml) || ""
   );
   var seedTargetContext = params.seedTargetContext || null;
+  var sitePlanText = String(params.sitePlanText || "").trim();
   var priorHomepageHtml = compactHtmlForContext(params.priorHomepageHtml || "");
   var priorHomepageDate = params.priorHomepageDate || "";
   var rawMemes = params.memes;
@@ -73,6 +74,9 @@ export function buildDreamPrompt(params) {
       ? "Same site: keep branding and link back to " + homepageUrl + ".\n"
       : "External referrer: do not copy its masthead or layout.\n";
   }
+  if (sitePlanText) {
+    continuity += "site_plan is this domain's design spec: keep its palette, typography, layout, nav, widgets, and graphics, and include its sitemap entries in the nav. Write the page content yourself; never output the plan.\n";
+  }
 
   var systemPrompt =
     "Dream Web Engine. One complete HTML page for the requested URL as it existed on " + era.formattedLong + " (" + dateStr + ").\n" +
@@ -83,6 +87,7 @@ export function buildDreamPrompt(params) {
       ? "Use these date keywords only where they fit: " + cleanMemes.join(", ") + ".\n"
       : "") +
     era.styleGuide + "\n" +
+    "ERA FIDELITY: the browser of " + era.year + " renders this page, so nothing may come from after " + era.year + " — not a character, icon style, typeface, or rendering trick that did not exist then. Let that browser's own defaults show through (visible link underlines, native form controls, its own scrolling) instead of a modern reset, and match the density and spacing conventions of " + era.year + " sites rather than today's.\n" +
     continuity +
     imageRules + "\n" +
     "Many internal and external <a href>, plus one <form method=\"GET\">. External links may point at made-up domains and pages.\n" +
@@ -103,6 +108,10 @@ export function buildDreamPrompt(params) {
         ? " (\"" + seedTargetContext.navContext.linkText + "\")"
         : "") +
       ".\n</homepage_architecture_note>\n";
+  }
+
+  if (sitePlanText) {
+    userPrompt += "\n<site_plan domain=\"" + (domain || homepageUrl) + "\" era=\"" + era.year + "\">\n" + sitePlanText + "\n</site_plan>\n";
   }
 
   if (isHomepageUrl(url) && priorHomepageHtml) {
@@ -167,6 +176,7 @@ export function buildDreamPrompt(params) {
     availableDomainImages: availableDomainImages,
     hasHomepageContext: hasHomepageContext,
     hasReferrerContext: hasReferrerContext,
+    hasSitePlan: Boolean(sitePlanText),
     memes: cleanMemes
   };
 }

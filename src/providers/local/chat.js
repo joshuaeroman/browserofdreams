@@ -1,13 +1,15 @@
 import { localUrl, describeLocalError } from "./endpoint.js";
 import { normalizeLocalModelId } from "./models.js";
 import { readDataLines } from "../sse.js";
+import { localReasoningEffort, outputTokenBudget, effortToThinkingBudget } from "../../core/effort.js";
 
 var MISSING_MODEL =
   "No local model selected. Open Settings → Providers → Local LLM, fetch models, and pick one.";
 
 // OpenAI Chat Completions against a user-supplied local server. Sends no
-// vendor-specific fields (no `reasoning_effort`) and no Authorization header
-// unless the user configured a key, so Ollama/llama.cpp/LM Studio all accept it.
+// Authorization header unless the user configured a key, so Ollama/llama.cpp/
+// LM Studio all accept it. `reasoning_effort` is sent only when the user
+// selected a level above off.
 export function sendLocalStreaming(opts) {
   var url = localUrl(opts.endpoint, "/chat/completions");
   var apiKey = String(opts.apiKey || "").trim();
@@ -38,9 +40,11 @@ export function sendLocalStreaming(opts) {
       temperature: temperature,
       stream: true
     };
+    var effort = localReasoningEffort(opts.reasoningEffort);
     if (typeof opts.maxTokens === "number" && isFinite(opts.maxTokens)) {
-      payload.max_tokens = opts.maxTokens;
+      payload.max_tokens = outputTokenBudget(opts.maxTokens, effortToThinkingBudget(opts.reasoningEffort));
     }
+    if (effort) payload.reasoning_effort = effort;
     xhr.send(JSON.stringify(payload));
   }
 
@@ -170,6 +174,8 @@ export function completeLocalOnce(opts, callback) {
     max_tokens: opts.maxTokens !== undefined ? opts.maxTokens : 180,
     temperature: temperature
   };
+  var effort = localReasoningEffort(opts.reasoningEffort);
+  if (effort) payload.reasoning_effort = effort;
 
   xhr.ontimeout = function() {
     done("Local request timed out", null);

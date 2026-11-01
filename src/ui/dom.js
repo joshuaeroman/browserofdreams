@@ -124,12 +124,10 @@ export function initDOM() {
   els.editEndpointRow = document.getElementById("edit-endpoint-row");
   els.editEndpoint = document.getElementById("edit-endpoint");
   els.editEndpointHelp = document.getElementById("edit-endpoint-help");
-  els.editThinkingRow = document.getElementById("edit-thinking-row");
-  els.editThinkingBudget = document.getElementById("edit-thinking-budget");
   els.editReasoningRow = document.getElementById("edit-reasoning-row");
   els.editReasoningEffort = document.getElementById("edit-reasoning-effort");
-  els.editHomepageReasoningRow = document.getElementById("edit-homepage-reasoning-row");
-  els.editHomepageReasoningEffort = document.getElementById("edit-homepage-reasoning-effort");
+  els.editSitePlanReasoningRow = document.getElementById("edit-site-plan-reasoning-row");
+  els.editSitePlanReasoningEffort = document.getElementById("edit-site-plan-reasoning-effort");
   els.providerEditSave = document.getElementById("provider-edit-save");
   els.providerEditFetch = document.getElementById("provider-edit-fetch");
   els.providerEditClose = document.getElementById("provider-edit-close");

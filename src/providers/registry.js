@@ -11,6 +11,7 @@ import { LocalAdapter } from "./local/index.js";
 // import { OpenCodeZenAdapter, OpenCodeGoAdapter } from "./opencode/index.js";
 import { isTextArtEngine } from "./adapter.js";
 import { normalizeProviderId, isRasterProvider, PROVIDER_CATALOG, providerById } from "../core/settings.js";
+import { normalizeReasoningEffort, effortToThinkingBudget } from "../core/effort.js";
 
 var registry = {
   "agentplatform": AgentPlatformAdapter,
@@ -99,6 +100,9 @@ export function resolveConfig(settings, providerId) {
     endpoint: "",
     model: s.pageModel,
     thinkingBudget: 0,
+    reasoningEffort: "off",
+    sitePlanReasoningEffort: "off",
+    sitePlanThinkingBudget: 0,
     geminiAuthMethod: p === "agentplatform" ? "agentplatform" : p,
     geminiLocation: "global",
     geminiProjectId: "",
@@ -109,8 +113,6 @@ export function resolveConfig(settings, providerId) {
   if (p === "commandcode") {
     conf.apiKey = useAccount ? ((account && account.apiKey) || "") : (s.commandcodeApiKey || "");
     conf.endpoint = (account && account.endpoint) || (providerById(p) && providerById(p).defaultEndpoint) || "";
-    conf.reasoningEffort = (account && account.reasoningEffort) || "off";
-    conf.homepageReasoningEffort = (account && account.homepageReasoningEffort) || "off";
   } else if (p === "openrouter") {
     conf.apiKey = useAccount ? ((account && account.apiKey) || "") : (s.openrouterApiKey || "");
     conf.endpoint = "https://openrouter.ai/api/v1";
@@ -140,16 +142,22 @@ export function resolveConfig(settings, providerId) {
       conf.geminiLocation = account.location || "global";
       conf.geminiProjectId = account.projectId || "";
       conf.vertexAuthType = account.vertexAuthType || "apikey";
-      conf.thinkingBudget = parseInt(account.thinkingBudget, 10) || 0;
     } else {
       conf.apiKey = s.googleApiKey || "";
       conf.endpoint = s.googleEndpoint || "https://aiplatform.googleapis.com";
       conf.geminiLocation = s.googleLocation || "global";
       conf.geminiProjectId = s.googleProjectId || "";
       conf.vertexAuthType = s.vertexAuthType || "apikey";
-      conf.thinkingBudget = parseInt(s.googleThinkingBudget, 10) || 0;
     }
     conf.geminiAuthMethod = "agentplatform";
+  }
+
+  conf.reasoningEffort = normalizeReasoningEffort(account && account.reasoningEffort);
+  conf.sitePlanReasoningEffort = normalizeReasoningEffort(account && account.sitePlanReasoningEffort);
+
+  if (p === "agentplatform" || p === "gemini") {
+    conf.thinkingBudget = effortToThinkingBudget(conf.reasoningEffort);
+    conf.sitePlanThinkingBudget = effortToThinkingBudget(conf.sitePlanReasoningEffort);
   }
 
   return conf;

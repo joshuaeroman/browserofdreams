@@ -32,6 +32,13 @@ var MEME_KEYWORDS = [
   "dial-up"
 ];
 
+var SITE_PLAN_TEXT =
+  "Mock Dial-Up Daily is a one-editor neighborhood newspaper, loading from a home page with a stacked centered wordmark over a 32px banner.\n" +
+  "Navy #000080, silver #c0c0c0, and yellow #ffff00 on Times New Roman; nested tables and a tiled starburst background.\n" +
+  "A yellow button row under the masthead leads to the borough desks; the front page runs three columns with a sidebar holding a hit counter, webring box, weather strip, and guestbook link.\n" +
+  "Pages: / (Home, the front page), /manhattan (Manhattan, borough desk), /archives (Archives, back issues), /guestbook (Guestbook, reader sign-in).\n" +
+  "Graphics: tiled starburst background, beveled banner ad, animated envelope icon.";
+
 function escapeHtml(value) {
   return String(value == null ? "" : value)
     .replace(/&/g, "&amp;")
@@ -70,6 +77,27 @@ function firstUserContent(messages) {
   return "";
 }
 
+function firstSystemContent(messages) {
+  if (!Array.isArray(messages)) return "";
+  for (var i = 0; i < messages.length; i++) {
+    var message = messages[i];
+    if (message && message.role === "system") {
+      return typeof message.content === "string" ? message.content : "";
+    }
+  }
+  return "";
+}
+
+function fullUserContent(messages) {
+  if (!Array.isArray(messages)) return "";
+  var out = "";
+  for (var i = 0; i < messages.length; i++) {
+    var message = messages[i];
+    if (message && typeof message.content === "string") out += message.content + "\n";
+  }
+  return out;
+}
+
 function streamContent(res, content) {
   res.writeHead(200, Object.assign({}, CORS_HEADERS, {
     "Content-Type": "text/event-stream",
@@ -101,10 +129,16 @@ function handleChat(req, res, body) {
   var prompt = firstUserContent(payload.messages);
   var wantsStream = payload.stream === true;
   var memesOnly = !wantsStream && typeof payload.max_tokens === "number" && payload.max_tokens <= 200;
-  var content = memesOnly ? MEME_KEYWORDS.join(", ") : pageHtml(model, prompt);
+  var system = firstSystemContent(payload.messages);
+  var kind = /site planner/i.test(system) ? "site-plan" : (memesOnly ? "memes" : "page");
+  var content = kind === "site-plan"
+    ? SITE_PLAN_TEXT
+    : (kind === "memes" ? MEME_KEYWORDS.join(", ") : pageHtml(model, prompt));
 
   console.log("[mock-local-llm] POST /v1/chat/completions model=" + model +
-    " stream=" + wantsStream + " messages=" + ((payload.messages && payload.messages.length) || 0));
+    " stream=" + wantsStream + " messages=" + ((payload.messages && payload.messages.length) || 0) +
+    " kind=" + kind + " sitePlan=" +
+    (fullUserContent(payload.messages).indexOf("<site_plan ") !== -1 ? "yes" : "no"));
 
   if (wantsStream) {
     streamContent(res, content);

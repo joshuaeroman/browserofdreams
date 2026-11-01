@@ -4,8 +4,10 @@ import { extractDomain, isHomepageUrl } from "./urls.js";
 
 export const STORAGE_KEY_PAGE_CACHE = "browser_of_dreams_pages_v1";
 export const STORAGE_KEY_DOMAIN_IMAGES = "browser_of_dreams_domain_images_v1";
+export const STORAGE_KEY_SITE_PLANS = "browser_of_dreams_site_plans_v1";
 
 var _internalDomainCache = null;
+var _internalSitePlanCache = null;
 
 export function loadPageCache() {
   try {
@@ -396,4 +398,108 @@ export function findMatchingDomainImage(domain, dateOrYear, divergenceVal, slotQ
   }
 
   return null;
+}
+
+export function loadSitePlanCache() {
+  try {
+    if (typeof localStorage === "undefined") {
+      _internalSitePlanCache = _internalSitePlanCache || {};
+      return _internalSitePlanCache;
+    }
+    var raw = localStorage.getItem(STORAGE_KEY_SITE_PLANS);
+    if (raw) {
+      _internalSitePlanCache = JSON.parse(raw) || {};
+      return _internalSitePlanCache;
+    }
+  } catch (e) {
+    // ignore
+  }
+  _internalSitePlanCache = _internalSitePlanCache || {};
+  return _internalSitePlanCache;
+}
+
+export function resetSitePlanCache() {
+  _internalSitePlanCache = null;
+}
+
+export function saveSitePlanCache(sitePlanCache) {
+  var target = sitePlanCache || _internalSitePlanCache;
+  if (!target) return;
+  _internalSitePlanCache = target;
+  try {
+    if (typeof localStorage === "undefined") return;
+    var keys = Object.keys(target);
+    if (keys.length > 60) {
+      keys.sort(function(a, b) {
+        return ((target[a] && target[a].timestamp) || 0) - ((target[b] && target[b].timestamp) || 0);
+      });
+      while (keys.length > 60) {
+        delete target[keys.shift()];
+      }
+    }
+    localStorage.setItem(STORAGE_KEY_SITE_PLANS, JSON.stringify(target));
+  } catch (e) {
+    try {
+      var retryKeys = Object.keys(target);
+      if (retryKeys.length > 1) {
+        retryKeys.sort(function(a, b) {
+          return ((target[a] && target[a].timestamp) || 0) - ((target[b] && target[b].timestamp) || 0);
+        });
+        delete target[retryKeys[0]];
+        localStorage.setItem(STORAGE_KEY_SITE_PLANS, JSON.stringify(target));
+      }
+    } catch (e2) {
+      // ignore
+    }
+  }
+}
+
+export function makeSitePlanKey(domainOrUrl, dateOrYear, divergenceVal) {
+  var d = extractDomain(domainOrUrl) || String(domainOrUrl || "").toLowerCase().replace(/^https?:\/\//i, "").replace(/\/.*$/, "").replace(/^www\./, "");
+  var tp = resolveTimePeriod(dateOrYear);
+  var div = typeof divergenceVal === "number" ? divergenceVal : 0;
+  var tier = getTimelineDivergenceProfile(div).tierKey;
+  var base = d + "__" + tp;
+  return tier === "grounded" ? base : (base + "__" + tier);
+}
+
+function resolveActiveSitePlanCache(optionalCache) {
+  if (optionalCache && typeof optionalCache === "object") {
+    return optionalCache;
+  }
+  if (!_internalSitePlanCache) {
+    _internalSitePlanCache = loadSitePlanCache();
+  }
+  return _internalSitePlanCache;
+}
+
+// entry: { domain, year, divergence, date, text, timestamp }
+export function getCachedSitePlan(domainOrUrl, dateOrYear, divergenceVal, optionalCache) {
+  var cache = resolveActiveSitePlanCache(optionalCache);
+  var entry = cache[makeSitePlanKey(domainOrUrl, dateOrYear, divergenceVal)];
+  return entry && entry.text ? entry : null;
+}
+
+export function saveSitePlan(item, optionalCache) {
+  if (!item) return null;
+  var text = String(item.text || "").trim();
+  if (!text) return null;
+  var domain = extractDomain(item.domain) || String(item.domain || "").toLowerCase().replace(/^https?:\/\//i, "").replace(/\/.*$/, "").replace(/^www\./, "");
+  var timePeriod = resolveTimePeriod(item.date);
+  var div = typeof item.divergence === "number" ? item.divergence : 0;
+  var cacheKey = makeSitePlanKey(domain, timePeriod, div);
+
+  var entry = {
+    domain: domain,
+    year: timePeriod,
+    divergence: div,
+    date: item.date || "",
+    text: text,
+    timestamp: Date.now()
+  };
+
+  var cache = resolveActiveSitePlanCache(optionalCache);
+  cache[cacheKey] = entry;
+  saveSitePlanCache(cache);
+  return entry;
 }

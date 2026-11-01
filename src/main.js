@@ -5,7 +5,7 @@ import "./styles/index.css";
 import { els, initDOM } from "./ui/dom.js";
 import { state } from "./core/state.js";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./core/settings.js";
-import { loadPageCache, savePageCache, makeCacheKey, loadDomainImageCache, saveDomainImageCache, saveDomainImage, getAvailableDomainImages, findMatchingDomainImage, formatImageDescriptor, resolveTimePeriod, makeDomainImageKey } from "./core/cache.js";
+import { loadPageCache, savePageCache, makeCacheKey, loadDomainImageCache, saveDomainImageCache, saveDomainImage, getAvailableDomainImages, findMatchingDomainImage, formatImageDescriptor, resolveTimePeriod, makeDomainImageKey, STORAGE_KEY_SITE_PLANS, loadSitePlanCache, resetSitePlanCache } from "./core/cache.js";
 import { getHistoryStack, getHistoryIndex, setHistoryIndex, pushHistory, canGoBack, canGoForward, goBack, goForward, resetHistory } from "./core/history.js";
 import { getEraInfo, applyEraTheme } from "./core/era.js";
 import { getTimelineDivergenceProfile } from "./core/timeline.js";
@@ -28,6 +28,7 @@ import { isOpenCodeProvider, isTextArtEngine } from "./providers/adapter.js";
 
 // Import Prompts & Features
 import { buildDreamPrompt } from "./prompts/dream-prompt.js";
+import { buildSitePlanPrompt, normalizeSitePlan } from "./prompts/site-plan-prompt.js";
 import { buildDayMemesPrompt, parseMemeList } from "./prompts/memes-prompt.js";
 import { buildTextArtPrompts, computePixelGridDimensions, resolveTextArtStyleMode } from "./prompts/text-art-prompt.js";
 import { FEATURED_PORTALS } from "./data/portals.js";
@@ -179,12 +180,16 @@ export function initApp() {
     state.pageCache = {};
     state.imageMemoryCache = {};
     state.domainImageCache = {};
+    state.sitePlanCache = {};
     clearMemeCache();
     try {
       localStorage.removeItem("browser_of_dreams_pages_v1");
       localStorage.removeItem("browser_of_dreams_memes_v1");
       localStorage.removeItem("browser_of_dreams_domain_images_v1");
+      localStorage.removeItem(STORAGE_KEY_SITE_PLANS);
     } catch (e) {}
+    resetSitePlanCache();
+    state.sitePlanCache = loadSitePlanCache();
     renderRecentHistory(navigateToDream);
     fetchDayMemesFromModel({
       date: els.dateInput.value,
@@ -386,6 +391,8 @@ var BrowserOfDreams = {
   isHomepageUrl: isHomepageUrl,
   compactHtmlForContext: compactHtmlForContext,
   buildDreamPrompt: buildDreamPrompt,
+  buildSitePlanPrompt: buildSitePlanPrompt,
+  normalizeSitePlan: normalizeSitePlan,
   extractHtml: extractHtml,
   extractTitleFromHtml: extractTitleFromHtml,
   extractDomain: extractDomain,
