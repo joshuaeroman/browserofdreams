@@ -9,31 +9,22 @@ import { getTimelineDivergenceProfile } from "./timeline.js";
 import { buildDreamPrompt } from "../prompts/dream-prompt.js";
 import { buildSitePlanPrompt, normalizeSitePlan, formatSitePlanForPrompt, MIN_SITE_PLAN_CHARS } from "../prompts/site-plan-prompt.js";
 import { resolveNavigationStages, stageLabel } from "./nav-stages.js";
-import { injectBridgeScript, ensureBridgeInDocument, bridgeCss, bridgeRuntimeJs } from "../bridge/inject.js";
+import { injectBridgeScript, buildStreamShell, bridgeCss, bridgeRuntimeJs, storageShimJs } from "../bridge/inject.js";
+import { createFrameStreamSink } from "./frame-stream.js";
 import { buildEraStylesheetCss, parseBrowserProfileFromPlan, resolveBrowserProfile } from "./era-stylesheets.js";
 import { getProvider, hasValidCredentials, resolveConfig } from "../providers/registry.js";
 import { providerById } from "./settings.js";
 import { getCachedMemesForDate, fetchDayMemesFromModel } from "../features/memes.js";
-import { handleDiscoveredImages } from "../features/images.js";
-import { setStatusText, setStatusImages, setStatusProgress, updateMemeStatusUI } from "../ui/statusbar.js";
+import { setStatusText, setStatusProgress, updateMemeStatusUI } from "../ui/statusbar.js";
 import { showLoadingOverlay, updateLoadingOverlayProgress, hideLoadingOverlay } from "../ui/loading-overlay.js";
 import { updateNavButtons } from "../ui/toolbar.js";
 import { showHomeScreen, renderRecentHistory } from "../ui/home-screen.js";
 import { openSettingsModal } from "../ui/settings-modal.js";
 
-function postToIframe(message) {
-  if (els.dreamFrame && els.dreamFrame.contentWindow) {
-    els.dreamFrame.contentWindow.postMessage(message, "*");
-  }
-}
-
 export function cancelActiveGeneration() {
   if (state.activeStreamWriter) {
     try {
       state.activeStreamWriter.close();
-      if (state.activeStreamWriter.doc && state.currentNavigationUrl) {
-        ensureBridgeInDocument(state.activeStreamWriter.doc, state.currentNavigationUrl, state.currentNavigationDate, state.activeBrowserProfile);
-      }
     } catch (e) {}
     state.activeStreamWriter = null;
   }
@@ -272,22 +263,25 @@ export function navigateToDream(rawUrl, dateStr, options) {
         els.dreamFrame.hidden = false;
         if (els.homeScreen) els.homeScreen.hidden = true;
         try {
-          if (els.dreamFrame.contentDocument) {
-            var substitutedJs = bridgeRuntimeJs.replace(
-              "__BASE_URL__",
-              JSON.stringify(normalizedUrl || "http://www.example.com/")
-            );
-            streamWriter = new ProgressiveHtmlWriter(els.dreamFrame.contentDocument, {
-              initialStyle: bridgeCss,
-              initialEraStyle: buildEraStylesheetCss(profileId),
-              initialScript: substitutedJs,
-              onImageRendered: function(slot) {
-                handleDiscoveredImages([slot], dateStr, postToIframe, setStatusImages, normalizedUrl);
-              }
-            });
-            streamWriter.open();
-            state.activeStreamWriter = streamWriter;
-          }
+          var substitutedJs = bridgeRuntimeJs.replace(
+            "__BASE_URL__",
+            JSON.stringify(normalizedUrl || "http://www.example.com/")
+          );
+          var streamSink = createFrameStreamSink(
+            els.dreamFrame,
+            "dream-stream-" + state.navigationEpoch + "-" + Date.now()
+          );
+          // The frame is sandboxed without allow-same-origin, so the host has no
+          // contentDocument: install a sink shell and stream markup to it.
+          els.dreamFrame.srcdoc = buildStreamShell();
+          streamWriter = new ProgressiveHtmlWriter(streamSink, {
+            initialShim: storageShimJs,
+            initialStyle: bridgeCss,
+            initialEraStyle: buildEraStylesheetCss(profileId),
+            initialScript: substitutedJs
+          });
+          streamWriter.open();
+          state.activeStreamWriter = streamWriter;
         } catch (e) {
           console.warn("Could not open iframe for progressive streaming:", e);
           streamWriter = null;
@@ -350,7 +344,6 @@ export function navigateToDream(rawUrl, dateStr, options) {
         if (error) {
           if (streamWriter && streamWriter.written && streamWriter.written.length > 0) {
             streamWriter.close();
-            ensureBridgeInDocument(streamWriter.doc, normalizedUrl, dateStr, profileId);
             setStatusProgress(null);
             setStatusText("Stopped receiving " + hostName + " (" + error + ")");
             return;
@@ -405,7 +398,6 @@ export function navigateToDream(rawUrl, dateStr, options) {
 
         if (streamWriter && streamWriter.hasOpened) {
           streamWriter.close();
-          ensureBridgeInDocument(streamWriter.doc, normalizedUrl, dateStr, profileId);
 
           var winTitle = document.getElementById("window-title");
           if (winTitle) winTitle.textContent = pageTitle + " - " + era.browserName;

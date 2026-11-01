@@ -49,8 +49,10 @@ You can configure more than one provider and switch between them at any time.
 - Use a dedicated key, avoid shared computers, and rotate keys you have used here.
 - Generated pages, images, memes, and recent history are cached locally. Clear them with
   **Settings > Clear Cached Pages & Images**.
-- Dream pages render inside a sandboxed iframe. Treat generated content as fiction and
-  never enter real credentials into a dreamed page.
+- Dream pages render inside a sandboxed iframe with an opaque origin: page scripts cannot
+  read this app's `localStorage`, cookies, or DOM, so they cannot reach your API keys. Page
+  storage is a per-page in-memory stand-in that is discarded on navigation. Treat generated
+  content as fiction and never enter real credentials into a dreamed page.
 
 ## What you can do
 

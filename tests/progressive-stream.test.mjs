@@ -4,11 +4,15 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 
-test("index.html configures sandbox with allow-same-origin and removes stream preview terminal", () => {
+test("index.html sandboxes the dream frame without allow-same-origin", () => {
   const html = fs.readFileSync(path.resolve("index.html"), "utf8");
+  const sandboxMatch = /id="dream-frame"[\s\S]*?sandbox="([^"]+)"/.exec(html);
+  assert.ok(sandboxMatch, "dream-frame must declare a sandbox attribute");
+  const tokens = sandboxMatch[1].split(/\s+/);
+  assert.ok(tokens.includes("allow-scripts"), "generated era pages need scripts");
   assert.ok(
-    html.includes('sandbox="allow-scripts allow-forms allow-same-origin"'),
-    "Iframe must have allow-same-origin in sandbox to support parent progressive document.write stream"
+    !tokens.includes("allow-same-origin"),
+    "allow-same-origin together with allow-scripts lets generated JS reach the host window, read saved API keys, and strip the sandbox"
   );
   assert.ok(
     !html.includes('id="loading-stream-preview"'),
@@ -120,53 +124,6 @@ test("ProgressiveHtmlWriter handles raw HTML stream without fences", () => {
 
   const fullWritten = writtenParts.join("");
   assert.equal(fullWritten, "<html><body><p>Dial-up flow</p></body></html>");
-});
-
-test("ensureBridgeInDocument attaches bridge style and script without duplicates", () => {
-  const code = fs.readFileSync(path.resolve("dist/app.js"), "utf8");
-  const sandbox = {
-    console: console,
-    Math: Math,
-    Date: Date,
-    String: String,
-    Object: Object,
-    Array: Array,
-    RegExp: RegExp,
-    JSON: JSON
-  };
-  sandbox.window = sandbox;
-  sandbox.globalThis = sandbox;
-  vm.createContext(sandbox);
-  vm.runInContext(code, sandbox);
-
-  const ensureBridgeInDocument = sandbox.BrowserOfDreams.ensureBridgeInDocument;
-  assert.ok(ensureBridgeInDocument, "ensureBridgeInDocument must be exported");
-
-  const elements = {};
-  const mockHead = {
-    appendChild: (el) => { elements[el.id] = el; }
-  };
-  const mockBody = {
-    appendChild: (el) => { elements[el.id] = el; }
-  };
-  const mockDoc = {
-    head: mockHead,
-    body: mockBody,
-    getElementById: (id) => elements[id] || null,
-    createElement: (tag) => ({ tagName: tag, textContent: "", id: "" })
-  };
-
-  ensureBridgeInDocument(mockDoc, "http://www.oldsite.com/", "1999-05-01");
-  assert.ok(elements["dream-bridge-style"], "Must create dream-bridge-style");
-  assert.ok(elements["dream-bridge-script"], "Must create dream-bridge-script");
-  assert.ok(elements["dream-bridge-script"].textContent.includes("www.oldsite.com"), "Must substitute base URL");
-
-  // Call second time to ensure idempotency
-  let headAppends = 0;
-  mockHead.appendChild = () => { headAppends++; };
-  mockBody.appendChild = () => { headAppends++; };
-  ensureBridgeInDocument(mockDoc, "http://www.oldsite.com/", "1999-05-01");
-  assert.equal(headAppends, 0, "Second call must not re-append bridge elements");
 });
 
 test("index.html contains status-progress-panel and status-progress-bar in footer", () => {
@@ -282,16 +239,20 @@ test("ProgressiveHtmlWriter writes the era style before the bridge style", () =>
   };
 
   const writer = new ProgressiveHtmlWriter(mockDoc, {
+    initialShim: "window.__shim = 1;",
     initialEraStyle: "a{text-decoration:underline}",
     initialStyle: "body{margin:0}"
   });
   writer.open();
 
   const written = writtenParts.join("");
+  const shimAt = written.indexOf('<script id="dream-storage-shim">');
   const eraAt = written.indexOf('<style id="dream-era-style">');
   const bridgeAt = written.indexOf('<style id="dream-bridge-style">');
+  assert.ok(shimAt !== -1, "storage shim must be written into the document");
   assert.ok(eraAt !== -1, "era style must be written into the document");
   assert.ok(bridgeAt !== -1, "bridge style must still be written");
+  assert.ok(shimAt < eraAt, "storage shim must precede the era style");
   assert.ok(eraAt < bridgeAt, "era style must precede the bridge style");
 });
 

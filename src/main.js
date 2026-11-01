@@ -36,7 +36,8 @@ import { ERA_FALLBACK_MEMES } from "./data/fallback-memes.js";
 import { DayMemesEngine, getCachedMemesForDate, fetchDayMemesFromModel, clearMemeCache } from "./features/memes.js";
 import { TextArtGenerator } from "./features/text-art.js";
 import { handleDiscoveredImages, generateSingleSlotImage, resolveActiveTextArtModel, downscaleImageToSlot } from "./features/images.js";
-import { injectBridgeScript, ensureBridgeInDocument } from "./bridge/inject.js";
+import { injectBridgeScript, buildStreamShell, storageShimJs, streamSinkJs } from "./bridge/inject.js";
+import { createFrameStreamSink, STREAM_MSG } from "./core/frame-stream.js";
 import { buildEraStylesheetCss, parseBrowserProfileFromPlan } from "./core/era-stylesheets.js";
 import { initPWA, promptInstall, canPromptInstall, isStandaloneMode, onPwaStateChange, setupWindowControls, pwaState, syncStandaloneDOM } from "./features/pwa.js";
 
@@ -405,7 +406,11 @@ var BrowserOfDreams = {
   resolveTimePeriod: resolveTimePeriod,
   makeDomainImageKey: makeDomainImageKey,
   injectBridgeScript: injectBridgeScript,
-  ensureBridgeInDocument: ensureBridgeInDocument,
+  buildStreamShell: buildStreamShell,
+  storageShimJs: storageShimJs,
+  streamSinkJs: streamSinkJs,
+  createFrameStreamSink: createFrameStreamSink,
+  STREAM_MSG: STREAM_MSG,
   buildEraStylesheetCss: buildEraStylesheetCss,
   parseBrowserProfileFromPlan: parseBrowserProfileFromPlan,
   ProgressiveHtmlWriter: ProgressiveHtmlWriter,
