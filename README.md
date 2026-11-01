@@ -71,7 +71,7 @@ You can configure more than one provider and switch between them at any time.
 
 ```bash
 npm test          # build and run the test suite
-npm run build     # rebuild dist/
+npm run build     # rebuild dist/ and stamp the shell cache version
 npm run watch     # rebuild on change
 npm run icons     # regenerate PWA icons (requires Python)
 npm run mock:llm  # OpenAI-compatible mock server on 127.0.0.1:11434 for the Local LLM provider
