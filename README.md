@@ -58,7 +58,9 @@ You can configure more than one provider and switch between them at any time.
   text model writes matching HTML, CSS, and JavaScript.
 - **Make period imagery.** Use a dedicated image model for photos and raster art, or let
   the text model draw ads, icons, and logos as pixel or SVG art. Only image-model slots
-  count toward the per-page image limit; SVG art is unlimited.
+  count toward the per-page image limit; SVG art is unlimited. Hover generated art to
+  open it full size — raster images fit the viewport, SVG art scales to half the smaller
+  viewport dimension.
 - **Set the reality dial.** Go from strict historical grounding to alternate-history
   invention.
 - **Watch it stream.** Pages arrive through a dial-up transfer dialog, and Recent History

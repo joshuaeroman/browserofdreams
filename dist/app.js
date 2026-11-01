@@ -1853,7 +1853,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
   }
 
   // src/bridge/bridge.runtime.css
-  var bridge_runtime_default = ".dream-img-wrapper {\n  position: relative;\n  display: inline-block;\n  max-width: 100%;\n  vertical-align: middle;\n}\nimg[data-dream-prompt],\nimg[data-dream-reuse] {\n  object-fit: cover;\n}\nimg[data-dream-prompt]:not([data-dream-loaded='true']),\nimg[data-dream-reuse]:not([data-dream-loaded='true']) {\n  background: repeating-linear-gradient(135deg, #d8d5c8 0px, #d8d5c8 8px, #ece9de 8px, #ece9de 16px);\n  border: 2px inset #999999;\n  color: #222222;\n  font-family: Tahoma, Verdana, monospace;\n  font-size: 11px;\n}\n.dream-img-badge {\n  position: absolute;\n  right: 4px;\n  bottom: 4px;\n  padding: 2px 6px;\n  font-family: Tahoma, Verdana, sans-serif;\n  font-size: 10px;\n  font-weight: bold;\n  background: rgba(0, 0, 0, 0.75);\n  color: #ffffff;\n  border: 1px solid rgba(255, 255, 255, 0.5);\n  border-radius: 3px;\n  cursor: pointer;\n  z-index: 10;\n  line-height: 1.2;\n  opacity: 0;\n  pointer-events: none;\n  transition: opacity 0.15s ease-in-out;\n}\n.dream-img-wrapper:hover .dream-img-badge,\n.dream-img-wrapper:focus-within .dream-img-badge,\n.dream-img-badge:hover,\n.dream-img-badge:focus {\n  opacity: 1;\n  pointer-events: auto;\n}\n.dream-img-badge:hover {\n  background: #0050ee;\n}\n@keyframes dreamScanlineReveal {\n  0% { clip-path: inset(0 0 96% 0); filter: contrast(1.4) saturate(0.6); }\n  35% { clip-path: inset(0 0 60% 0); }\n  70% { clip-path: inset(0 0 22% 0); }\n  100% { clip-path: inset(0 0 0 0); filter: none; }\n}\nimg.dream-scanline-reveal {\n  animation: dreamScanlineReveal 0.85s steps(12, end) forwards;\n}\n";
+  var bridge_runtime_default = ".dream-img-wrapper {\n  position: relative;\n  display: inline-block;\n  max-width: 100%;\n  vertical-align: middle;\n}\nimg[data-dream-prompt],\nimg[data-dream-reuse] {\n  object-fit: cover;\n}\nimg[data-dream-prompt]:not([data-dream-loaded='true']),\nimg[data-dream-reuse]:not([data-dream-loaded='true']) {\n  background: repeating-linear-gradient(135deg, #d8d5c8 0px, #d8d5c8 8px, #ece9de 8px, #ece9de 16px);\n  border: 2px inset #999999;\n  color: #222222;\n  font-family: Tahoma, Verdana, monospace;\n  font-size: 11px;\n}\n.dream-img-badge {\n  position: absolute;\n  right: 4px;\n  bottom: 4px;\n  padding: 2px 6px;\n  font-family: Tahoma, Verdana, sans-serif;\n  font-size: 10px;\n  font-weight: bold;\n  background: rgba(0, 0, 0, 0.75);\n  color: #ffffff;\n  border: 1px solid rgba(255, 255, 255, 0.5);\n  border-radius: 3px;\n  cursor: pointer;\n  z-index: 10;\n  line-height: 1.2;\n  opacity: 0;\n  pointer-events: none;\n  transition: opacity 0.15s ease-in-out;\n}\n.dream-img-wrapper:hover .dream-img-badge,\n.dream-img-wrapper:focus-within .dream-img-badge,\n.dream-img-badge:hover,\n.dream-img-badge:focus {\n  opacity: 1;\n  pointer-events: auto;\n}\n.dream-img-badge:hover {\n  background: #0050ee;\n}\n.dream-img-expand {\n  position: absolute;\n  top: 4px;\n  right: 4px;\n  display: none;\n  padding: 0 5px;\n  font-family: Tahoma, Verdana, sans-serif;\n  font-size: 12px;\n  font-weight: bold;\n  line-height: 1.35;\n  background: rgba(0, 0, 0, 0.75);\n  color: #ffffff;\n  border: 1px solid rgba(255, 255, 255, 0.5);\n  border-radius: 3px;\n  cursor: zoom-in;\n  z-index: 11;\n}\n.dream-img-wrapper.is-dream-loaded .dream-img-expand {\n  display: block;\n  opacity: 0;\n  pointer-events: none;\n  transition: opacity 0.15s ease-in-out;\n}\n.dream-img-wrapper.is-dream-loaded:hover .dream-img-expand,\n.dream-img-wrapper.is-dream-loaded:focus-within .dream-img-expand,\n.dream-img-expand:hover,\n.dream-img-expand:focus {\n  opacity: 1;\n  pointer-events: auto;\n}\n.dream-img-expand:hover {\n  background: #0050ee;\n}\n.dream-lightbox {\n  position: fixed;\n  top: 0;\n  left: 0;\n  width: 100%;\n  height: 100%;\n  z-index: 2147483000;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 32px;\n  box-sizing: border-box;\n  background: rgba(8, 8, 12, 0.86);\n  cursor: zoom-out;\n}\n.dream-lightbox-img {\n  display: block;\n  max-width: 100%;\n  max-height: 100%;\n  box-sizing: border-box;\n  background: #ffffff;\n  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);\n  border: 1px solid rgba(255, 255, 255, 0.25);\n  cursor: default;\n}\n.dream-lightbox-close {\n  position: absolute;\n  top: 10px;\n  right: 14px;\n  width: 34px;\n  height: 34px;\n  padding: 0;\n  font-family: Tahoma, Verdana, sans-serif;\n  font-size: 22px;\n  line-height: 1;\n  color: #ffffff;\n  background: rgba(0, 0, 0, 0.6);\n  border: 1px solid rgba(255, 255, 255, 0.4);\n  border-radius: 4px;\n  cursor: pointer;\n}\n.dream-lightbox-close:hover,\n.dream-lightbox-close:focus {\n  background: #0050ee;\n}\n@keyframes dreamScanlineReveal {\n  0% { clip-path: inset(0 0 96% 0); filter: contrast(1.4) saturate(0.6); }\n  35% { clip-path: inset(0 0 60% 0); }\n  70% { clip-path: inset(0 0 22% 0); }\n  100% { clip-path: inset(0 0 0 0); filter: none; }\n}\nimg.dream-scanline-reveal {\n  animation: dreamScanlineReveal 0.85s steps(12, end) forwards;\n}\n";
 
   // src/bridge/runtime.runtime.js
   var runtime_runtime_default = `(function() {
@@ -1888,6 +1888,95 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       tag + ' ' + safeLabel + '</text></svg>';
     return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
   }
+  var LIGHTBOX_PADDING = 32;
+
+  function viewportDimensions() {
+    var docEl = document.documentElement || {};
+    return {
+      width: docEl.clientWidth || window.innerWidth || 0,
+      height: docEl.clientHeight || window.innerHeight || 0
+    };
+  }
+
+  function naturalPixelSize(img) {
+    var w = img.naturalWidth || parseInt(img.getAttribute('width'), 10) || 0;
+    var h = img.naturalHeight || parseInt(img.getAttribute('height'), 10) || 0;
+    return {
+      width: w > 0 ? w : 320,
+      height: h > 0 ? h : 200
+    };
+  }
+
+  /*
+   * Image-model (raster) art opens at its natural size, capped to the viewport
+   * minus padding. Vector/pixel SVG art is resolution independent, so it is
+   * scaled until its longest edge spans half the smaller viewport dimension.
+   */
+  function fullSizeBox(img) {
+    var natural = naturalPixelSize(img);
+    var vp = viewportDimensions();
+    var vw = vp.width || 640;
+    var vh = vp.height || 480;
+    var src = String(img.getAttribute('src') || '');
+    if (/^data:image\\/svg\\+xml/i.test(src)) {
+      var maxSide = Math.min(vw, vh) / 2;
+      var svgScale = maxSide / Math.max(natural.width, natural.height);
+      return {
+        width: Math.max(1, Math.round(natural.width * svgScale)),
+        height: Math.max(1, Math.round(natural.height * svgScale))
+      };
+    }
+    var maxW = Math.max(1, vw - LIGHTBOX_PADDING * 2);
+    var maxH = Math.max(1, vh - LIGHTBOX_PADDING * 2);
+    var fit = Math.min(1, maxW / natural.width, maxH / natural.height);
+    return {
+      width: Math.max(1, Math.round(natural.width * fit)),
+      height: Math.max(1, Math.round(natural.height * fit))
+    };
+  }
+
+  function closeDreamLightbox() {
+    var open = document.querySelector('.dream-lightbox');
+    if (open && open.parentNode) open.parentNode.removeChild(open);
+  }
+
+  function openDreamLightbox(img) {
+    if (!img) return;
+    if (img.getAttribute('data-dream-loaded') !== 'true') return;
+    var src = img.getAttribute('src') || '';
+    if (!src) return;
+    closeDreamLightbox();
+    var box = fullSizeBox(img);
+    var overlay = document.createElement('div');
+    overlay.className = 'dream-lightbox';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', img.alt || 'Image preview');
+    var full = document.createElement('img');
+    full.className = 'dream-lightbox-img';
+    full.setAttribute('alt', img.alt || '');
+    full.setAttribute('src', src);
+    full.style.width = box.width + 'px';
+    full.style.height = box.height + 'px';
+    if (img.style && img.style.imageRendering) {
+      full.style.imageRendering = img.style.imageRendering;
+    }
+    var close = document.createElement('button');
+    close.setAttribute('type', 'button');
+    close.className = 'dream-lightbox-close';
+    close.setAttribute('aria-label', 'Close full size view');
+    close.textContent = '\xD7';
+    overlay.appendChild(full);
+    overlay.appendChild(close);
+    overlay.addEventListener('click', function(ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (ev.target === overlay || ev.target === close) closeDreamLightbox();
+    });
+    var host = document.body || document.documentElement;
+    if (host) host.appendChild(overlay);
+  }
+
   var dispatchedSlotIds = {};
 
   function setupImages() {
@@ -1975,6 +2064,21 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
           };
         })(slotId, prompt, reuse, role, aspect, w, h));
         wrap.appendChild(badge);
+        var expand = document.createElement('button');
+        expand.type = 'button';
+        expand.className = 'dream-img-expand';
+        expand.setAttribute('aria-label', 'View full size');
+        expand.title = 'View full size';
+        expand.textContent = '\u2922';
+        expand.addEventListener('click', (function(el) {
+          return function(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            openDreamLightbox(el);
+          };
+        })(img));
+        wrap.appendChild(expand);
+        if (alreadyLoaded) wrap.classList.add('is-dream-loaded');
       }
       if (!dispatchedSlotIds[slotId]) {
         dispatchedSlotIds[slotId] = true;
@@ -2012,6 +2116,8 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
         }
         target.src = msg.dataUrl;
         target.setAttribute('data-dream-loaded', 'true');
+        var readyWrapper = target.closest ? target.closest('.dream-img-wrapper') : null;
+        if (readyWrapper && readyWrapper.classList) readyWrapper.classList.add('is-dream-loaded');
         void target.offsetWidth;
         target.classList.add('dream-scanline-reveal');
       }
@@ -2078,6 +2184,10 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
       linkText: 'Form submission',
       formData: formDataObj
     }, '*');
+  });
+  document.addEventListener('keydown', function(ev) {
+    if (!ev) return;
+    if (ev.key === 'Escape' || ev.key === 'Esc' || ev.keyCode === 27) closeDreamLightbox();
   });
   window.__setupDreamImages = setupImages;
 
@@ -6870,7 +6980,7 @@ Naming an era technique in plain words is expected \u2014 the nested layout tabl
   }
 
   // build-stamp:build-stamp
-  var BUILD_TIME = "2026-11-01T02:19:56.280Z";
+  var BUILD_TIME = "2026-11-01T03:56:20.262Z";
 
   // src/ui/settings-modal.js
   var OTHER = "__other__";

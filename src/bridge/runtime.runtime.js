@@ -30,6 +30,95 @@
       tag + ' ' + safeLabel + '</text></svg>';
     return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
   }
+  var LIGHTBOX_PADDING = 32;
+
+  function viewportDimensions() {
+    var docEl = document.documentElement || {};
+    return {
+      width: docEl.clientWidth || window.innerWidth || 0,
+      height: docEl.clientHeight || window.innerHeight || 0
+    };
+  }
+
+  function naturalPixelSize(img) {
+    var w = img.naturalWidth || parseInt(img.getAttribute('width'), 10) || 0;
+    var h = img.naturalHeight || parseInt(img.getAttribute('height'), 10) || 0;
+    return {
+      width: w > 0 ? w : 320,
+      height: h > 0 ? h : 200
+    };
+  }
+
+  /*
+   * Image-model (raster) art opens at its natural size, capped to the viewport
+   * minus padding. Vector/pixel SVG art is resolution independent, so it is
+   * scaled until its longest edge spans half the smaller viewport dimension.
+   */
+  function fullSizeBox(img) {
+    var natural = naturalPixelSize(img);
+    var vp = viewportDimensions();
+    var vw = vp.width || 640;
+    var vh = vp.height || 480;
+    var src = String(img.getAttribute('src') || '');
+    if (/^data:image\/svg\+xml/i.test(src)) {
+      var maxSide = Math.min(vw, vh) / 2;
+      var svgScale = maxSide / Math.max(natural.width, natural.height);
+      return {
+        width: Math.max(1, Math.round(natural.width * svgScale)),
+        height: Math.max(1, Math.round(natural.height * svgScale))
+      };
+    }
+    var maxW = Math.max(1, vw - LIGHTBOX_PADDING * 2);
+    var maxH = Math.max(1, vh - LIGHTBOX_PADDING * 2);
+    var fit = Math.min(1, maxW / natural.width, maxH / natural.height);
+    return {
+      width: Math.max(1, Math.round(natural.width * fit)),
+      height: Math.max(1, Math.round(natural.height * fit))
+    };
+  }
+
+  function closeDreamLightbox() {
+    var open = document.querySelector('.dream-lightbox');
+    if (open && open.parentNode) open.parentNode.removeChild(open);
+  }
+
+  function openDreamLightbox(img) {
+    if (!img) return;
+    if (img.getAttribute('data-dream-loaded') !== 'true') return;
+    var src = img.getAttribute('src') || '';
+    if (!src) return;
+    closeDreamLightbox();
+    var box = fullSizeBox(img);
+    var overlay = document.createElement('div');
+    overlay.className = 'dream-lightbox';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', img.alt || 'Image preview');
+    var full = document.createElement('img');
+    full.className = 'dream-lightbox-img';
+    full.setAttribute('alt', img.alt || '');
+    full.setAttribute('src', src);
+    full.style.width = box.width + 'px';
+    full.style.height = box.height + 'px';
+    if (img.style && img.style.imageRendering) {
+      full.style.imageRendering = img.style.imageRendering;
+    }
+    var close = document.createElement('button');
+    close.setAttribute('type', 'button');
+    close.className = 'dream-lightbox-close';
+    close.setAttribute('aria-label', 'Close full size view');
+    close.textContent = '×';
+    overlay.appendChild(full);
+    overlay.appendChild(close);
+    overlay.addEventListener('click', function(ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (ev.target === overlay || ev.target === close) closeDreamLightbox();
+    });
+    var host = document.body || document.documentElement;
+    if (host) host.appendChild(overlay);
+  }
+
   var dispatchedSlotIds = {};
 
   function setupImages() {
@@ -117,6 +206,21 @@
           };
         })(slotId, prompt, reuse, role, aspect, w, h));
         wrap.appendChild(badge);
+        var expand = document.createElement('button');
+        expand.type = 'button';
+        expand.className = 'dream-img-expand';
+        expand.setAttribute('aria-label', 'View full size');
+        expand.title = 'View full size';
+        expand.textContent = '⤢';
+        expand.addEventListener('click', (function(el) {
+          return function(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            openDreamLightbox(el);
+          };
+        })(img));
+        wrap.appendChild(expand);
+        if (alreadyLoaded) wrap.classList.add('is-dream-loaded');
       }
       if (!dispatchedSlotIds[slotId]) {
         dispatchedSlotIds[slotId] = true;
@@ -154,6 +258,8 @@
         }
         target.src = msg.dataUrl;
         target.setAttribute('data-dream-loaded', 'true');
+        var readyWrapper = target.closest ? target.closest('.dream-img-wrapper') : null;
+        if (readyWrapper && readyWrapper.classList) readyWrapper.classList.add('is-dream-loaded');
         void target.offsetWidth;
         target.classList.add('dream-scanline-reveal');
       }
@@ -220,6 +326,10 @@
       linkText: 'Form submission',
       formData: formDataObj
     }, '*');
+  });
+  document.addEventListener('keydown', function(ev) {
+    if (!ev) return;
+    if (ev.key === 'Escape' || ev.key === 'Esc' || ev.keyCode === 27) closeDreamLightbox();
   });
   window.__setupDreamImages = setupImages;
 
