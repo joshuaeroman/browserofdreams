@@ -41,3 +41,20 @@ test("a new homepage prompt carries the prior date as design reference", () => {
   assert.match(bundle.userPrompt, /NYC News/);
   assert.equal(bundle.userPrompt.includes("<site_homepage"), false);
 });
+
+test("Page prompt carries an era-neutral fidelity rule", () => {
+  var old = buildDreamPrompt({ url: "http://www.nycnews.com/", date: "1999-12-31", timelineDivergence: 0 });
+  var modern = buildDreamPrompt({ url: "http://www.nycnews.com/", date: "2011-06-01", timelineDivergence: 0 });
+
+  assert.ok(old.systemPrompt.includes("ERA FIDELITY"));
+  assert.ok(old.systemPrompt.includes("nothing may come from after 1999"));
+  assert.ok(modern.systemPrompt.includes("nothing may come from after 2011"));
+
+  // Same reminder in every era: only the year may differ, and no measurements.
+  var a = /ERA FIDELITY:[^\n]+/.exec(old.systemPrompt)[0];
+  var b = /ERA FIDELITY:[^\n]+/.exec(modern.systemPrompt)[0];
+  assert.equal(a.split("1999").join("YEAR"), b.split("2011").join("YEAR"));
+  assert.equal(/\d+\s*(?:px|pixels)/.test(a), false, "fidelity rule must not prescribe measurements");
+  assert.ok(/emoji|character/i.test(a), "covers post-era characters");
+  assert.ok(/link underlines/i.test(a), "covers default browser affordances");
+});

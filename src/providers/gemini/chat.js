@@ -1,6 +1,7 @@
 import { AgentPlatform } from "./agent-platform.js";
 import { GeminiThinking } from "./thinking.js";
 import { setGeminiHeaders, formatGeminiError, translateMessages, parseGeminiSSEChunks } from "./messages.js";
+import { outputTokenBudget } from "../../core/effort.js";
 
 export function sendGeminiStreaming(opts) {
   var endpoint = opts.endpoint || "https://aiplatform.googleapis.com";
@@ -112,7 +113,7 @@ export function sendGeminiStreaming(opts) {
     contents: translated.contents,
     generationConfig: {
       temperature: tempFloat,
-      maxOutputTokens: maxTokens
+      maxOutputTokens: outputTokenBudget(maxTokens, opts.thinkingBudget || 0)
     }
   };
 

@@ -1,3 +1,5 @@
+import { thinkingBudgetToEffort } from "./effort.js";
+
 export const STORAGE_KEY_SETTINGS = "browser_of_dreams_settings_v1";
 
 export const PROVIDER_CATALOG = [
@@ -95,16 +97,14 @@ export function emptyAccounts() {
       account.projectId = "";
       account.location = "global";
       account.endpoint = provider.defaultEndpoint;
-      account.thinkingBudget = 0;
-    } else if (provider.id === "commandcode") {
-      account.reasoningEffort = "off";
-      account.homepageReasoningEffort = "off";
     } else if (provider.id === "opencode-zen" || provider.id === "opencode-go") {
       account.endpoint = provider.defaultEndpoint;
     } else if (provider.id === "local") {
       account.endpoint = provider.defaultEndpoint;
       account.enabled = false;
     }
+    account.reasoningEffort = "off";
+    account.sitePlanReasoningEffort = "off";
     accounts[provider.id] = account;
   }
   return accounts;
@@ -117,6 +117,18 @@ function cloneAccounts(source) {
     var id = PROVIDER_CATALOG[i].id;
     if (source[id] && typeof source[id] === "object") {
       accounts[id] = Object.assign({}, accounts[id], source[id]);
+      if (accounts[id].thinkingBudget !== undefined) {
+        if (accounts[id].reasoningEffort === "off") {
+          accounts[id].reasoningEffort = thinkingBudgetToEffort(accounts[id].thinkingBudget);
+        }
+        delete accounts[id].thinkingBudget;
+      }
+      if (accounts[id].homepageReasoningEffort !== undefined) {
+        if (accounts[id].sitePlanReasoningEffort === "off") {
+          accounts[id].sitePlanReasoningEffort = accounts[id].homepageReasoningEffort;
+        }
+        delete accounts[id].homepageReasoningEffort;
+      }
     }
   }
   return accounts;
@@ -157,7 +169,7 @@ export function buildAccountsFromFlat(raw) {
   accounts.agentplatform.projectId = source.googleProjectId || "";
   accounts.agentplatform.location = source.googleLocation || "global";
   accounts.agentplatform.endpoint = source.googleEndpoint || accounts.agentplatform.endpoint;
-  accounts.agentplatform.thinkingBudget = parseInt(source.googleThinkingBudget, 10) || 0;
+  accounts.agentplatform.reasoningEffort = thinkingBudgetToEffort(source.googleThinkingBudget);
 
   var googleKey = trimKey(source.googleApiKey);
   var agentSelected = page === "agentplatform" || image === "agentplatform";
@@ -169,6 +181,17 @@ export function buildAccountsFromFlat(raw) {
     if (geminiSelected) accounts.gemini.apiKey = googleKey;
   }
   return accounts;
+}
+
+function accountsHaveLegacyEffortFields(accounts) {
+  if (!accounts || typeof accounts !== "object") return false;
+  for (var id in accounts) {
+    var a = accounts[id];
+    if (a && typeof a === "object" && (a.thinkingBudget !== undefined || a.homepageReasoningEffort !== undefined)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function legacySecretsPresent(raw) {
@@ -247,7 +270,8 @@ export function loadSettings() {
       var migrated = migrateSettings(parsed);
       delete migrated._migratedFromLegacy;
       var needsSave = !parsed.accounts || parsed.pageProvider === "aistudio" ||
-        parsed.imageProvider === "same" || legacySecretsPresent(parsed);
+        parsed.imageProvider === "same" || legacySecretsPresent(parsed) ||
+        accountsHaveLegacyEffortFields(parsed.accounts);
       if (needsSave) saveSettings(migrated);
       return migrated;
     }

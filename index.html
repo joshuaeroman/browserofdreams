@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
   <link rel="alternate icon" type="image/png" href="icons/favicon-32.png" />
-  <link rel="stylesheet" href="dist/app.css?v=4" />
-  <script src="dist/app.js?v=4" defer></script>
+  <link rel="stylesheet" href="dist/app.css?v=5" />
+  <script src="dist/app.js?v=5" defer></script>
 </head>
 <body>
   <div id="browser-window" class="browser-window">
@@ -318,11 +318,6 @@
               <input type="text" id="edit-endpoint" class="settings-input" />
               <div class="field-help" id="edit-endpoint-help" hidden></div>
             </div>
-            <div class="form-row" id="edit-thinking-row" hidden>
-              <label for="edit-thinking-budget">Thinking Token Budget:</label>
-              <input type="number" id="edit-thinking-budget" class="settings-input" min="0" max="32768" step="256" value="0" />
-              <div class="field-help">Set to 0 for fastest HTML page generation.</div>
-            </div>
             <div class="form-row" id="edit-reasoning-row" hidden>
               <label for="edit-reasoning-effort">Reasoning Effort:</label>
               <select id="edit-reasoning-effort" class="settings-input">
@@ -335,9 +330,9 @@
               </select>
               <div class="field-help">Off requests no thinking; models that cannot disable reasoning use their default. Higher levels spend more reasoning tokens before the page streams.</div>
             </div>
-            <div class="form-row" id="edit-homepage-reasoning-row" hidden>
-              <label for="edit-homepage-reasoning-effort">Homepage Reasoning Effort:</label>
-              <select id="edit-homepage-reasoning-effort" class="settings-input">
+            <div class="form-row" id="edit-site-plan-reasoning-row" hidden>
+              <label for="edit-site-plan-reasoning-effort">Site Plan Reasoning Effort:</label>
+              <select id="edit-site-plan-reasoning-effort" class="settings-input">
                 <option value="off">Off — fastest</option>
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -345,7 +340,7 @@
                 <option value="xhigh">Extra high</option>
                 <option value="max">Max — slowest</option>
               </select>
-              <div class="field-help">Used for the site root / base domain that later pages reference. It is cached per date and timeline tier, so a higher level costs once for each homepage variant.</div>
+              <div class="field-help">Used only for the site plan, generated once per domain and era. Homepage and child pages use Reasoning Effort above.</div>
             </div>
             <div class="provider-edit-actions">
               <button type="button" id="provider-edit-save" class="small-btn">Save key</button>

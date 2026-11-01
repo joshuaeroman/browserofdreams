@@ -1,10 +1,11 @@
 import { loadSettings } from "./settings.js";
-import { loadPageCache, loadDomainImageCache } from "./cache.js";
+import { loadPageCache, loadDomainImageCache, loadSitePlanCache } from "./cache.js";
 
 export const state = {
   settings: loadSettings(),
   pageCache: loadPageCache(),
   domainImageCache: loadDomainImageCache(),
+  sitePlanCache: loadSitePlanCache(),
   imageMemoryCache: {},
   activeRequest: null,
   activeTimer: null,

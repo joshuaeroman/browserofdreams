@@ -325,14 +325,12 @@ function openEditor(providerId) {
   setEditStatus("");
 
   var isAgent = providerId === "agentplatform";
-  var isCommandCode = providerId === "commandcode";
   var keyless = !!provider.keyless;
   var openCode = isOpenCodeProvider(providerId);
   if (els.editAuthRow) els.editAuthRow.hidden = !isAgent;
   if (els.editProjectRow) els.editProjectRow.hidden = !isAgent;
-  if (els.editThinkingRow) els.editThinkingRow.hidden = !isAgent;
-  if (els.editReasoningRow) els.editReasoningRow.hidden = !isCommandCode;
-  if (els.editHomepageReasoningRow) els.editHomepageReasoningRow.hidden = !isCommandCode;
+  if (els.editReasoningRow) els.editReasoningRow.hidden = false;
+  if (els.editSitePlanReasoningRow) els.editSitePlanReasoningRow.hidden = false;
   if (els.editEndpointRow) els.editEndpointRow.hidden = !(isAgent || openCode || keyless);
   if (els.providerCorsNotice) els.providerCorsNotice.hidden = !openCode;
   if (els.editKeyLabel) {
@@ -364,15 +362,14 @@ function openEditor(providerId) {
     }
     if (els.editLocation) els.editLocation.value = account.location || "global";
     if (els.editEndpoint) els.editEndpoint.value = account.endpoint || provider.defaultEndpoint;
-    if (els.editThinkingBudget) els.editThinkingBudget.value = account.thinkingBudget || 0;
   } else if ((openCode || keyless) && els.editEndpoint) {
     els.editEndpoint.value = account.endpoint || provider.defaultEndpoint;
   }
-  if (isCommandCode && els.editReasoningEffort) {
+  if (els.editReasoningEffort) {
     els.editReasoningEffort.value = account.reasoningEffort || "off";
   }
-  if (isCommandCode && els.editHomepageReasoningEffort) {
-    els.editHomepageReasoningEffort.value = account.homepageReasoningEffort || "off";
+  if (els.editSitePlanReasoningEffort) {
+    els.editSitePlanReasoningEffort.value = account.sitePlanReasoningEffort || "off";
   }
 }
 
@@ -387,18 +384,17 @@ function readEditorIntoDraft() {
     account.projectId = els.editProjectId ? els.editProjectId.value.trim() : account.projectId;
     account.location = els.editLocation ? (els.editLocation.value.trim() || "global") : account.location;
     account.endpoint = els.editEndpoint ? (els.editEndpoint.value.trim() || provider.defaultEndpoint) : account.endpoint;
-    account.thinkingBudget = els.editThinkingBudget ? (parseInt(els.editThinkingBudget.value, 10) || 0) : account.thinkingBudget;
   } else if (isOpenCodeProvider(id) && els.editEndpoint) {
     account.endpoint = els.editEndpoint.value.trim() || provider.defaultEndpoint;
   } else if (provider && provider.keyless) {
     if (els.editEndpoint) account.endpoint = LocalAdapter.normalizeEndpoint(els.editEndpoint.value);
     account.enabled = true;
   }
-  if (id === "commandcode" && els.editReasoningEffort) {
+  if (els.editReasoningEffort) {
     account.reasoningEffort = els.editReasoningEffort.value || "off";
   }
-  if (id === "commandcode" && els.editHomepageReasoningEffort) {
-    account.homepageReasoningEffort = els.editHomepageReasoningEffort.value || "off";
+  if (els.editSitePlanReasoningEffort) {
+    account.sitePlanReasoningEffort = els.editSitePlanReasoningEffort.value || "off";
   }
 }
 

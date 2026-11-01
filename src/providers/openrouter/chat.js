@@ -1,4 +1,5 @@
 import { normalizeOpenRouterModelId } from "./models.js";
+import { openRouterReasoningEffort } from "../../core/effort.js";
 import { getAppReferrerOrigin } from "./referer.js";
 
 export function sendOpenRouterStreaming(opts) {
@@ -119,7 +120,7 @@ export function sendOpenRouterStreaming(opts) {
     messages: opts.messages || [],
     temperature: tempFloat,
     stream: true,
-    reasoning: { effort: "none" }
+    reasoning: { effort: openRouterReasoningEffort(opts.reasoningEffort) }
   });
 
   xhr.send(payload);
@@ -135,7 +136,7 @@ export function sendOpenRouterStreaming(opts) {
 
 /**
  * Quick non-streaming completion for fast utility queries (memes, etc.)
- * Reasoning disabled ({ effort: "none" }).
+ * Reasoning follows opts.reasoningEffort; utilities pass "off", which maps to { effort: "none" }.
  */
 export function completeOpenRouterOnce(opts, callback) {
   var maxTokens = opts.maxTokens !== undefined ? opts.maxTokens : 180;
@@ -185,7 +186,7 @@ export function completeOpenRouterOnce(opts, callback) {
     stream: false,
     max_tokens: maxTokens,
     temperature: temp,
-    reasoning: { effort: "none" }
+    reasoning: { effort: openRouterReasoningEffort(opts.reasoningEffort) }
   }));
 
   return {

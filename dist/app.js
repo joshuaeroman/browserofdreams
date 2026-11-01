@@ -128,12 +128,10 @@ var BrowserOfDreamsBundle = (() => {
     els.editEndpointRow = document.getElementById("edit-endpoint-row");
     els.editEndpoint = document.getElementById("edit-endpoint");
     els.editEndpointHelp = document.getElementById("edit-endpoint-help");
-    els.editThinkingRow = document.getElementById("edit-thinking-row");
-    els.editThinkingBudget = document.getElementById("edit-thinking-budget");
     els.editReasoningRow = document.getElementById("edit-reasoning-row");
     els.editReasoningEffort = document.getElementById("edit-reasoning-effort");
-    els.editHomepageReasoningRow = document.getElementById("edit-homepage-reasoning-row");
-    els.editHomepageReasoningEffort = document.getElementById("edit-homepage-reasoning-effort");
+    els.editSitePlanReasoningRow = document.getElementById("edit-site-plan-reasoning-row");
+    els.editSitePlanReasoningEffort = document.getElementById("edit-site-plan-reasoning-effort");
     els.providerEditSave = document.getElementById("provider-edit-save");
     els.providerEditFetch = document.getElementById("provider-edit-fetch");
     els.providerEditClose = document.getElementById("provider-edit-close");
@@ -160,6 +158,46 @@ var BrowserOfDreamsBundle = (() => {
     els.btnCopySource = document.getElementById("btn-copy-source");
     els.btnDownloadSource = document.getElementById("btn-download-source");
     return els;
+  }
+
+  // src/core/effort.js
+  var REASONING_EFFORT_LEVELS = ["off", "low", "medium", "high", "xhigh", "max"];
+  var EFFORT_THINKING_BUDGETS = { off: 0, low: 1024, medium: 4096, high: 16384, xhigh: 24576, max: 32768 };
+  var DEFAULT_OUTPUT_CEILING = 32768;
+  function outputTokenBudget(contentTokens, thinkingBudget, ceiling) {
+    var content = parseInt(contentTokens, 10);
+    if (!isFinite(content) || content < 0) content = 0;
+    var budget = parseInt(thinkingBudget, 10) || 0;
+    if (budget <= 0) return content;
+    var total = content + budget;
+    var cap = parseInt(ceiling, 10) || DEFAULT_OUTPUT_CEILING;
+    return total > cap ? cap : total;
+  }
+  function normalizeReasoningEffort(value) {
+    var v = String(value == null ? "" : value).toLowerCase();
+    return REASONING_EFFORT_LEVELS.indexOf(v) === -1 ? "off" : v;
+  }
+  function effortToThinkingBudget(effort) {
+    return EFFORT_THINKING_BUDGETS[normalizeReasoningEffort(effort)];
+  }
+  function thinkingBudgetToEffort(budget) {
+    var b = parseInt(budget, 10) || 0;
+    if (b <= 0) return "off";
+    if (b <= 1024) return "low";
+    if (b <= 8192) return "medium";
+    return "high";
+  }
+  function providerReasoningEffort(effort) {
+    var e = normalizeReasoningEffort(effort);
+    if (e === "off") return "";
+    if (e === "xhigh" || e === "max") return "high";
+    return e;
+  }
+  function openRouterReasoningEffort(effort) {
+    return providerReasoningEffort(effort) || "none";
+  }
+  function localReasoningEffort(effort) {
+    return providerReasoningEffort(effort);
   }
 
   // src/core/settings.js
@@ -254,16 +292,14 @@ var BrowserOfDreamsBundle = (() => {
         account.projectId = "";
         account.location = "global";
         account.endpoint = provider.defaultEndpoint;
-        account.thinkingBudget = 0;
-      } else if (provider.id === "commandcode") {
-        account.reasoningEffort = "off";
-        account.homepageReasoningEffort = "off";
       } else if (provider.id === "opencode-zen" || provider.id === "opencode-go") {
         account.endpoint = provider.defaultEndpoint;
       } else if (provider.id === "local") {
         account.endpoint = provider.defaultEndpoint;
         account.enabled = false;
       }
+      account.reasoningEffort = "off";
+      account.sitePlanReasoningEffort = "off";
       accounts[provider.id] = account;
     }
     return accounts;
@@ -275,6 +311,18 @@ var BrowserOfDreamsBundle = (() => {
       var id = PROVIDER_CATALOG[i].id;
       if (source[id] && typeof source[id] === "object") {
         accounts[id] = Object.assign({}, accounts[id], source[id]);
+        if (accounts[id].thinkingBudget !== void 0) {
+          if (accounts[id].reasoningEffort === "off") {
+            accounts[id].reasoningEffort = thinkingBudgetToEffort(accounts[id].thinkingBudget);
+          }
+          delete accounts[id].thinkingBudget;
+        }
+        if (accounts[id].homepageReasoningEffort !== void 0) {
+          if (accounts[id].sitePlanReasoningEffort === "off") {
+            accounts[id].sitePlanReasoningEffort = accounts[id].homepageReasoningEffort;
+          }
+          delete accounts[id].homepageReasoningEffort;
+        }
       }
     }
     return accounts;
@@ -309,7 +357,7 @@ var BrowserOfDreamsBundle = (() => {
     accounts.agentplatform.projectId = source.googleProjectId || "";
     accounts.agentplatform.location = source.googleLocation || "global";
     accounts.agentplatform.endpoint = source.googleEndpoint || accounts.agentplatform.endpoint;
-    accounts.agentplatform.thinkingBudget = parseInt(source.googleThinkingBudget, 10) || 0;
+    accounts.agentplatform.reasoningEffort = thinkingBudgetToEffort(source.googleThinkingBudget);
     var googleKey = trimKey(source.googleApiKey);
     var agentSelected = page === "agentplatform" || image === "agentplatform";
     var geminiSelected = page === "gemini" || image === "gemini";
@@ -320,6 +368,16 @@ var BrowserOfDreamsBundle = (() => {
       if (geminiSelected) accounts.gemini.apiKey = googleKey;
     }
     return accounts;
+  }
+  function accountsHaveLegacyEffortFields(accounts) {
+    if (!accounts || typeof accounts !== "object") return false;
+    for (var id in accounts) {
+      var a = accounts[id];
+      if (a && typeof a === "object" && (a.thinkingBudget !== void 0 || a.homepageReasoningEffort !== void 0)) {
+        return true;
+      }
+    }
+    return false;
   }
   function legacySecretsPresent(raw) {
     if (!raw) return false;
@@ -390,7 +448,7 @@ var BrowserOfDreamsBundle = (() => {
         }
         var migrated = migrateSettings(parsed);
         delete migrated._migratedFromLegacy;
-        var needsSave = !parsed.accounts || parsed.pageProvider === "aistudio" || parsed.imageProvider === "same" || legacySecretsPresent(parsed);
+        var needsSave = !parsed.accounts || parsed.pageProvider === "aistudio" || parsed.imageProvider === "same" || legacySecretsPresent(parsed) || accountsHaveLegacyEffortFields(parsed.accounts);
         if (needsSave) saveSettings(migrated);
         return migrated;
       }
@@ -677,7 +735,9 @@ var BrowserOfDreamsBundle = (() => {
   // src/core/cache.js
   var STORAGE_KEY_PAGE_CACHE = "browser_of_dreams_pages_v1";
   var STORAGE_KEY_DOMAIN_IMAGES = "browser_of_dreams_domain_images_v1";
+  var STORAGE_KEY_SITE_PLANS = "browser_of_dreams_site_plans_v1";
   var _internalDomainCache = null;
+  var _internalSitePlanCache = null;
   function loadPageCache() {
     try {
       if (typeof localStorage === "undefined") return {};
@@ -1018,12 +1078,105 @@ var BrowserOfDreamsBundle = (() => {
     }
     return null;
   }
+  function loadSitePlanCache() {
+    try {
+      if (typeof localStorage === "undefined") {
+        _internalSitePlanCache = _internalSitePlanCache || {};
+        return _internalSitePlanCache;
+      }
+      var raw = localStorage.getItem(STORAGE_KEY_SITE_PLANS);
+      if (raw) {
+        _internalSitePlanCache = JSON.parse(raw) || {};
+        return _internalSitePlanCache;
+      }
+    } catch (e) {
+    }
+    _internalSitePlanCache = _internalSitePlanCache || {};
+    return _internalSitePlanCache;
+  }
+  function resetSitePlanCache() {
+    _internalSitePlanCache = null;
+  }
+  function saveSitePlanCache(sitePlanCache) {
+    var target = sitePlanCache || _internalSitePlanCache;
+    if (!target) return;
+    _internalSitePlanCache = target;
+    try {
+      if (typeof localStorage === "undefined") return;
+      var keys = Object.keys(target);
+      if (keys.length > 60) {
+        keys.sort(function(a, b) {
+          return (target[a] && target[a].timestamp || 0) - (target[b] && target[b].timestamp || 0);
+        });
+        while (keys.length > 60) {
+          delete target[keys.shift()];
+        }
+      }
+      localStorage.setItem(STORAGE_KEY_SITE_PLANS, JSON.stringify(target));
+    } catch (e) {
+      try {
+        var retryKeys = Object.keys(target);
+        if (retryKeys.length > 1) {
+          retryKeys.sort(function(a, b) {
+            return (target[a] && target[a].timestamp || 0) - (target[b] && target[b].timestamp || 0);
+          });
+          delete target[retryKeys[0]];
+          localStorage.setItem(STORAGE_KEY_SITE_PLANS, JSON.stringify(target));
+        }
+      } catch (e2) {
+      }
+    }
+  }
+  function makeSitePlanKey(domainOrUrl, dateOrYear, divergenceVal) {
+    var d = extractDomain(domainOrUrl) || String(domainOrUrl || "").toLowerCase().replace(/^https?:\/\//i, "").replace(/\/.*$/, "").replace(/^www\./, "");
+    var tp = resolveTimePeriod(dateOrYear);
+    var div = typeof divergenceVal === "number" ? divergenceVal : 0;
+    var tier = getTimelineDivergenceProfile(div).tierKey;
+    var base = d + "__" + tp;
+    return tier === "grounded" ? base : base + "__" + tier;
+  }
+  function resolveActiveSitePlanCache(optionalCache) {
+    if (optionalCache && typeof optionalCache === "object") {
+      return optionalCache;
+    }
+    if (!_internalSitePlanCache) {
+      _internalSitePlanCache = loadSitePlanCache();
+    }
+    return _internalSitePlanCache;
+  }
+  function getCachedSitePlan(domainOrUrl, dateOrYear, divergenceVal, optionalCache) {
+    var cache = resolveActiveSitePlanCache(optionalCache);
+    var entry = cache[makeSitePlanKey(domainOrUrl, dateOrYear, divergenceVal)];
+    return entry && entry.text ? entry : null;
+  }
+  function saveSitePlan(item, optionalCache) {
+    if (!item) return null;
+    var text = String(item.text || "").trim();
+    if (!text) return null;
+    var domain = extractDomain(item.domain) || String(item.domain || "").toLowerCase().replace(/^https?:\/\//i, "").replace(/\/.*$/, "").replace(/^www\./, "");
+    var timePeriod = resolveTimePeriod(item.date);
+    var div = typeof item.divergence === "number" ? item.divergence : 0;
+    var cacheKey = makeSitePlanKey(domain, timePeriod, div);
+    var entry = {
+      domain,
+      year: timePeriod,
+      divergence: div,
+      date: item.date || "",
+      text,
+      timestamp: Date.now()
+    };
+    var cache = resolveActiveSitePlanCache(optionalCache);
+    cache[cacheKey] = entry;
+    saveSitePlanCache(cache);
+    return entry;
+  }
 
   // src/core/state.js
   var state = {
     settings: loadSettings(),
     pageCache: loadPageCache(),
     domainImageCache: loadDomainImageCache(),
+    sitePlanCache: loadSitePlanCache(),
     imageMemoryCache: {},
     activeRequest: null,
     activeTimer: null,
@@ -1351,6 +1504,7 @@ var BrowserOfDreamsBundle = (() => {
       params.referrerHtml || navContext && navContext.referrerHtml || ""
     );
     var seedTargetContext = params.seedTargetContext || null;
+    var sitePlanText = String(params.sitePlanText || "").trim();
     var priorHomepageHtml = compactHtmlForContext(params.priorHomepageHtml || "");
     var priorHomepageDate = params.priorHomepageDate || "";
     var rawMemes = params.memes;
@@ -1386,10 +1540,16 @@ var BrowserOfDreamsBundle = (() => {
       continuity += "referring_page is the click or form that opened " + url + ". Write that destination, not a copy of the referrer. Keep its names, headlines, prices, and facts. ";
       continuity += isSameSiteReferrer ? "Same site: keep branding and link back to " + homepageUrl + ".\n" : "External referrer: do not copy its masthead or layout.\n";
     }
-    var systemPrompt = "Dream Web Engine. One complete HTML page for the requested URL as it existed on " + era.formattedLong + " (" + dateStr + ").\nThat date is today. Headlines, prices, tech, and culture stop there. Present tense. Full articles, nav, sidebars, and footer \u2014 not a stub.\nNo cookie-cutter templates. Era-appropriate dimensions. Only layout tools that existed in " + era.year + ".\n" + timelineProfile.promptGuide + "\n" + (cleanMemes.length > 0 ? "Use these date keywords only where they fit: " + cleanMemes.join(", ") + ".\n" : "") + era.styleGuide + "\n" + continuity + imageRules + '\nMany internal and external <a href>, plus one <form method="GET">. External links may point at made-up domains and pages.\nOutput only the document from <!DOCTYPE html> to </html>. No markdown fences or commentary.';
+    if (sitePlanText) {
+      continuity += "site_plan is this domain's design spec: keep its palette, typography, layout, nav, widgets, and graphics, and include its sitemap entries in the nav. Write the page content yourself; never output the plan.\n";
+    }
+    var systemPrompt = "Dream Web Engine. One complete HTML page for the requested URL as it existed on " + era.formattedLong + " (" + dateStr + ").\nThat date is today. Headlines, prices, tech, and culture stop there. Present tense. Full articles, nav, sidebars, and footer \u2014 not a stub.\nNo cookie-cutter templates. Era-appropriate dimensions. Only layout tools that existed in " + era.year + ".\n" + timelineProfile.promptGuide + "\n" + (cleanMemes.length > 0 ? "Use these date keywords only where they fit: " + cleanMemes.join(", ") + ".\n" : "") + era.styleGuide + "\nERA FIDELITY: the browser of " + era.year + " renders this page, so nothing may come from after " + era.year + " \u2014 not a character, icon style, typeface, or rendering trick that did not exist then. Let that browser's own defaults show through (visible link underlines, native form controls, its own scrolling) instead of a modern reset, and match the density and spacing conventions of " + era.year + " sites rather than today's.\n" + continuity + imageRules + '\nMany internal and external <a href>, plus one <form method="GET">. External links may point at made-up domains and pages.\nOutput only the document from <!DOCTYPE html> to </html>. No markdown fences or commentary.';
     var userPrompt = "URL: " + url + "\nHome: " + homepageUrl + "\nDate: " + dateStr + "\nTimeline: " + timelineProfile.shortLabel + " " + timelineProfile.pct + "%\n";
     if (seedTargetContext && seedTargetContext.targetSubpageUrl) {
       userPrompt += "\n<homepage_architecture_note>\nThis is the root " + homepageUrl + ". Establish header, CSS, and nav, and link to " + seedTargetContext.targetSubpageUrl + (seedTargetContext.navContext && seedTargetContext.navContext.linkText ? ' ("' + seedTargetContext.navContext.linkText + '")' : "") + ".\n</homepage_architecture_note>\n";
+    }
+    if (sitePlanText) {
+      userPrompt += '\n<site_plan domain="' + (domain || homepageUrl) + '" era="' + era.year + '">\n' + sitePlanText + "\n</site_plan>\n";
     }
     if (isHomepageUrl(url) && priorHomepageHtml) {
       userPrompt += '\n<prior_homepage url="' + homepageUrl + '" date="' + priorHomepageDate + '">\n' + priorHomepageHtml + "\n</prior_homepage>\n";
@@ -1436,8 +1596,57 @@ var BrowserOfDreamsBundle = (() => {
       availableDomainImages,
       hasHomepageContext,
       hasReferrerContext,
+      hasSitePlan: Boolean(sitePlanText),
       memes: cleanMemes
     };
+  }
+
+  // src/prompts/site-plan-prompt.js
+  var MIN_SITE_PLAN_CHARS = 200;
+  function buildSitePlanPrompt(params) {
+    var url = params.url;
+    var dateStr = params.date;
+    var era = getEraInfo(dateStr);
+    var timelineProfile = getTimelineDivergenceProfile(params.timelineDivergence, era.year);
+    var homepageUrl = params.homepageUrl || getHomepageUrl(url);
+    var domain = extractDomain(url) || extractDomain(homepageUrl) || homepageUrl;
+    var systemPrompt = "Dream Web Engine site planner. You are the art director for a fictional website: another model will build every page of it from your plan.\nThe site at " + domain + " is invented \u2014 its organization, people, products, and history. Never check whether it existed, and never refuse because it is fictional.\n\nWHAT THE PLAN IS FOR: the generator first builds this site's homepage from your plan, then builds each child page from your plan plus that homepage. Describe the shared design system concretely enough that every page can be built from your words alone: identity and voice, era look, page structure, navigation, recurring widgets, imagery direction, and the sitemap. Skip article copy and code.\n\nERA: the designer is working in " + era.year + ". Every design choice must be believable for web design in " + era.year + " \u2014 the layout techniques, type, colors, textures, and widgets of that year, nothing from later web eras.\n" + era.styleGuide + "\n\nREALITY SETTING (" + timelineProfile.badgeText + "): " + timelineProfile.description + "\nThe site itself is still fictional; this setting only defines the world around it. Let it shape the site's departments, organization names, recurring figures, and imagery where it matters. The visual design still belongs to " + era.year + `.
+
+COVER AT LEAST: the site's name and one-sentence concept; palette with concrete colors; typography; page framing and layout approach; masthead/header treatment; navigation placement and style; body column layout with sidebars; recurring widgets and interactive elements; imagery and advertising direction (what the recurring photos, ads, and icons show, and where they sit); footer; and a sitemap listing each page's path, navigation label, and purpose, starting with "/" for the homepage.
+
+DESCRIBE, DO NOT PRESCRIBE. The page generator chooses every implementation detail.
+In this plan, never write: HTML, CSS, JavaScript, tags, attributes, properties, code of any kind, image file names, asset paths, image URLs, pixel measurements, or fixed counts of elements. Say what the visitor sees, not how to build it.
+Naming an era technique in plain words is expected \u2014 the nested layout tables, the beveled button look, animated GIF spotlights \u2014 because that is what makes the design read as ` + era.year + ". Written markup is not.\nEvery color MUST come with its hex code, written plainly as #003366. A hex code is a color, not CSS, and the generator needs it to keep every page on the same palette.\nStill describe proportion and character (a wide reading column between two narrow rails, a slim masthead) instead of measurements. No article or page copy.\nBe specific about identity, voice, palette, and design intent rather than brief. Plain text; prose or short bullet lists are both fine. No article copy. No fences or commentary around the plan.";
+    var userPrompt = "Domain: " + domain + "\nHome: " + homepageUrl + "\nDate: " + dateStr + "\nTimeline: " + timelineProfile.shortLabel + " " + timelineProfile.pct + "%\n";
+    return {
+      systemPrompt,
+      userPrompt,
+      era,
+      timelineProfile,
+      domain,
+      homepageUrl
+    };
+  }
+  function normalizeSitePlan(rawText) {
+    return String(rawText || "").replace(/```[a-z]*\s*/gi, "").trim();
+  }
+  function formatSitePlanForPrompt(entry) {
+    if (!entry || !entry.text) return "";
+    return String(entry.text).trim();
+  }
+
+  // src/core/nav-stages.js
+  function resolveNavigationStages(needsSitePlan, needsHomepage) {
+    var stages = [];
+    if (needsSitePlan) stages.push("site-plan");
+    if (needsHomepage) stages.push("homepage");
+    stages.push("page");
+    return stages;
+  }
+  function stageLabel(stages, name) {
+    var idx = stages.indexOf(name);
+    if (idx === -1) return "";
+    return "[" + (idx + 1) + "/" + stages.length + "] ";
   }
 
   // src/bridge/bridge.runtime.css
@@ -2460,7 +2669,7 @@ var BrowserOfDreamsBundle = (() => {
       contents: translated.contents,
       generationConfig: {
         temperature: tempFloat,
-        maxOutputTokens: maxTokens
+        maxOutputTokens: outputTokenBudget(maxTokens, opts.thinkingBudget || 0)
       }
     };
     body.generationConfig.thinkingConfig = GeminiThinking.buildThinkingConfig(
@@ -3003,7 +3212,7 @@ var BrowserOfDreamsBundle = (() => {
       messages: opts.messages || [],
       temperature: tempFloat,
       stream: true,
-      reasoning: { effort: "none" }
+      reasoning: { effort: openRouterReasoningEffort(opts.reasoningEffort) }
     });
     xhr.send(payload);
     return {
@@ -3058,7 +3267,7 @@ var BrowserOfDreamsBundle = (() => {
       stream: false,
       max_tokens: maxTokens,
       temperature: temp,
-      reasoning: { effort: "none" }
+      reasoning: { effort: openRouterReasoningEffort(opts.reasoningEffort) }
     }));
     return {
       xhr,
@@ -3513,14 +3722,14 @@ var BrowserOfDreamsBundle = (() => {
   }
   function buildMessageBody(opts, stream, stage) {
     var translated = translateCommandCodeMessages(opts.messages || []);
+    var effort = opts.reasoningEffort || "off";
     var body = {
       model: opts.model || "claude-sonnet-5-5",
-      max_tokens: opts.maxTokens || 16384,
+      max_tokens: outputTokenBudget(opts.maxTokens || 16384, effortToThinkingBudget(effort)),
       messages: translated.messages,
       stream
     };
     if (translated.system) body.system = translated.system;
-    var effort = opts.reasoningEffort || "off";
     var attempt = stage || 0;
     if (attempt === 0) {
       body.thinking = effort === "off" ? { type: "disabled" } : { type: "adaptive" };
@@ -3866,9 +4075,11 @@ var BrowserOfDreamsBundle = (() => {
         temperature,
         stream: true
       };
+      var effort = localReasoningEffort(opts.reasoningEffort);
       if (typeof opts.maxTokens === "number" && isFinite(opts.maxTokens)) {
-        payload.max_tokens = opts.maxTokens;
+        payload.max_tokens = outputTokenBudget(opts.maxTokens, effortToThinkingBudget(opts.reasoningEffort));
       }
+      if (effort) payload.reasoning_effort = effort;
       xhr.send(JSON.stringify(payload));
     }
     function processSSE(final) {
@@ -3980,6 +4191,8 @@ var BrowserOfDreamsBundle = (() => {
       max_tokens: opts.maxTokens !== void 0 ? opts.maxTokens : 180,
       temperature
     };
+    var effort = localReasoningEffort(opts.reasoningEffort);
+    if (effort) payload.reasoning_effort = effort;
     xhr.ontimeout = function() {
       done("Local request timed out", null);
     };
@@ -4122,6 +4335,9 @@ var BrowserOfDreamsBundle = (() => {
       endpoint: "",
       model: s.pageModel,
       thinkingBudget: 0,
+      reasoningEffort: "off",
+      sitePlanReasoningEffort: "off",
+      sitePlanThinkingBudget: 0,
       geminiAuthMethod: p === "agentplatform" ? "agentplatform" : p,
       geminiLocation: "global",
       geminiProjectId: "",
@@ -4131,8 +4347,6 @@ var BrowserOfDreamsBundle = (() => {
     if (p === "commandcode") {
       conf.apiKey = useAccount ? account && account.apiKey || "" : s.commandcodeApiKey || "";
       conf.endpoint = account && account.endpoint || providerById(p) && providerById(p).defaultEndpoint || "";
-      conf.reasoningEffort = account && account.reasoningEffort || "off";
-      conf.homepageReasoningEffort = account && account.homepageReasoningEffort || "off";
     } else if (p === "openrouter") {
       conf.apiKey = useAccount ? account && account.apiKey || "" : s.openrouterApiKey || "";
       conf.endpoint = "https://openrouter.ai/api/v1";
@@ -4160,16 +4374,20 @@ var BrowserOfDreamsBundle = (() => {
         conf.geminiLocation = account.location || "global";
         conf.geminiProjectId = account.projectId || "";
         conf.vertexAuthType = account.vertexAuthType || "apikey";
-        conf.thinkingBudget = parseInt(account.thinkingBudget, 10) || 0;
       } else {
         conf.apiKey = s.googleApiKey || "";
         conf.endpoint = s.googleEndpoint || "https://aiplatform.googleapis.com";
         conf.geminiLocation = s.googleLocation || "global";
         conf.geminiProjectId = s.googleProjectId || "";
         conf.vertexAuthType = s.vertexAuthType || "apikey";
-        conf.thinkingBudget = parseInt(s.googleThinkingBudget, 10) || 0;
       }
       conf.geminiAuthMethod = "agentplatform";
+    }
+    conf.reasoningEffort = normalizeReasoningEffort(account && account.reasoningEffort);
+    conf.sitePlanReasoningEffort = normalizeReasoningEffort(account && account.sitePlanReasoningEffort);
+    if (p === "agentplatform" || p === "gemini") {
+      conf.thinkingBudget = effortToThinkingBudget(conf.reasoningEffort);
+      conf.sitePlanThinkingBudget = effortToThinkingBudget(conf.sitePlanReasoningEffort);
     }
     return conf;
   }
@@ -6395,7 +6613,7 @@ var BrowserOfDreamsBundle = (() => {
   }
 
   // build-stamp:build-stamp
-  var BUILD_TIME = "2026-10-31T22:20:26.749Z";
+  var BUILD_TIME = "2026-11-01T00:40:40.883Z";
 
   // src/ui/settings-modal.js
   var OTHER = "__other__";
@@ -6664,14 +6882,12 @@ var BrowserOfDreamsBundle = (() => {
     if (els.providerEditTitle) els.providerEditTitle.textContent = provider.name;
     setEditStatus("");
     var isAgent = providerId === "agentplatform";
-    var isCommandCode = providerId === "commandcode";
     var keyless = !!provider.keyless;
     var openCode = isOpenCodeProvider(providerId);
     if (els.editAuthRow) els.editAuthRow.hidden = !isAgent;
     if (els.editProjectRow) els.editProjectRow.hidden = !isAgent;
-    if (els.editThinkingRow) els.editThinkingRow.hidden = !isAgent;
-    if (els.editReasoningRow) els.editReasoningRow.hidden = !isCommandCode;
-    if (els.editHomepageReasoningRow) els.editHomepageReasoningRow.hidden = !isCommandCode;
+    if (els.editReasoningRow) els.editReasoningRow.hidden = false;
+    if (els.editSitePlanReasoningRow) els.editSitePlanReasoningRow.hidden = false;
     if (els.editEndpointRow) els.editEndpointRow.hidden = !(isAgent || openCode || keyless);
     if (els.providerCorsNotice) els.providerCorsNotice.hidden = !openCode;
     if (els.editKeyLabel) {
@@ -6696,15 +6912,14 @@ var BrowserOfDreamsBundle = (() => {
       }
       if (els.editLocation) els.editLocation.value = account.location || "global";
       if (els.editEndpoint) els.editEndpoint.value = account.endpoint || provider.defaultEndpoint;
-      if (els.editThinkingBudget) els.editThinkingBudget.value = account.thinkingBudget || 0;
     } else if ((openCode || keyless) && els.editEndpoint) {
       els.editEndpoint.value = account.endpoint || provider.defaultEndpoint;
     }
-    if (isCommandCode && els.editReasoningEffort) {
+    if (els.editReasoningEffort) {
       els.editReasoningEffort.value = account.reasoningEffort || "off";
     }
-    if (isCommandCode && els.editHomepageReasoningEffort) {
-      els.editHomepageReasoningEffort.value = account.homepageReasoningEffort || "off";
+    if (els.editSitePlanReasoningEffort) {
+      els.editSitePlanReasoningEffort.value = account.sitePlanReasoningEffort || "off";
     }
   }
   function readEditorIntoDraft() {
@@ -6718,18 +6933,17 @@ var BrowserOfDreamsBundle = (() => {
       account.projectId = els.editProjectId ? els.editProjectId.value.trim() : account.projectId;
       account.location = els.editLocation ? els.editLocation.value.trim() || "global" : account.location;
       account.endpoint = els.editEndpoint ? els.editEndpoint.value.trim() || provider.defaultEndpoint : account.endpoint;
-      account.thinkingBudget = els.editThinkingBudget ? parseInt(els.editThinkingBudget.value, 10) || 0 : account.thinkingBudget;
     } else if (isOpenCodeProvider(id) && els.editEndpoint) {
       account.endpoint = els.editEndpoint.value.trim() || provider.defaultEndpoint;
     } else if (provider && provider.keyless) {
       if (els.editEndpoint) account.endpoint = LocalAdapter.normalizeEndpoint(els.editEndpoint.value);
       account.enabled = true;
     }
-    if (id === "commandcode" && els.editReasoningEffort) {
+    if (els.editReasoningEffort) {
       account.reasoningEffort = els.editReasoningEffort.value || "off";
     }
-    if (id === "commandcode" && els.editHomepageReasoningEffort) {
-      account.homepageReasoningEffort = els.editHomepageReasoningEffort.value || "off";
+    if (els.editSitePlanReasoningEffort) {
+      account.sitePlanReasoningEffort = els.editSitePlanReasoningEffort.value || "off";
     }
   }
   function maybeCopySiblingKey() {
@@ -7127,8 +7341,8 @@ var BrowserOfDreamsBundle = (() => {
       messages,
       temperature: copts.temperature !== void 0 ? copts.temperature : settings.temperature,
       maxTokens: copts.maxTokens !== void 0 ? copts.maxTokens : 16384,
-      reasoningEffort: copts.homepage ? config.homepageReasoningEffort : config.reasoningEffort,
-      thinkingBudget: config.thinkingBudget || 0,
+      reasoningEffort: copts.sitePlan ? config.sitePlanReasoningEffort : config.reasoningEffort,
+      thinkingBudget: copts.sitePlan ? config.sitePlanThinkingBudget || 0 : config.thinkingBudget || 0,
       geminiAuthMethod: config.geminiAuthMethod,
       vertexAuthType: config.vertexAuthType,
       geminiProjectId: config.geminiProjectId,
@@ -7238,25 +7452,31 @@ var BrowserOfDreamsBundle = (() => {
           }
         }
       }, 120);
+      var planDomain = extractDomain(normalizedUrl) || homepageUrl;
+      var existingPlanEntry = getCachedSitePlan(planDomain, dateStr, state.settings.timelineDivergence);
+      var needsPlan = !existingPlanEntry;
       var needsHomepageFirst = !isHome && (!state.pageCache[homeCacheKey] || !state.pageCache[homeCacheKey].html);
+      var stages = resolveNavigationStages(needsPlan, needsHomepageFirst);
+      var existingHomepageHtml = state.pageCache[homeCacheKey] && state.pageCache[homeCacheKey].html || "";
       var priorHomepage = findClosestHomepage(
         state.pageCache,
         homepageUrl,
         dateStr,
         state.settings.timelineDivergence
       );
-      function streamTargetPage(resolvedHomepageHtml, isStageTwo) {
-        var stagePrefix = isStageTwo ? "[Stage 2/2] " : "";
+      function streamTargetPage(resolvedHomepageHtml, planEntry) {
+        var stage = stageLabel(stages, "page");
+        var hasPrepStages = stages.length > 1;
         var tlProf = getTimelineDivergenceProfile(state.settings.timelineDivergence, era.year);
         showLoadingOverlay({
           eraKey: era.eraKey,
-          dialogTitle: era.browserName + " \u2014 " + stagePrefix + "Transferring from " + hostName,
-          headline: stagePrefix + "Contacting host: " + hostName + "...",
+          dialogTitle: era.browserName + " \u2014 " + stage + "Transferring from " + hostName,
+          headline: stage + "Contacting host: " + hostName + "...",
           subline: "Temporal coordinates: " + era.formattedLong + " \u2022 " + tlProf.badgeText + (dayMemes && dayMemes.length ? " \u2022 \u{1F3AD} " + dayMemes.slice(0, 3).join(", ") + "..." : "") + (resolvedHomepageHtml && !isHome ? " \u2022 Cohesive Site Context Active" : "") + " \u2022 Model: " + state.settings.pageModel,
-          progressPct: isStageTwo ? 50 : 8,
+          progressPct: hasPrepStages ? 50 : 8,
           bytesText: "0.0 KB received"
         });
-        setStatusText(stagePrefix + "Connecting to " + hostName + " (" + era.formattedShort + " \u2022 " + tlProf.shortLabel + ")...");
+        setStatusText(stage + "Connecting to " + hostName + " (" + era.formattedShort + " \u2022 " + tlProf.shortLabel + ")...");
         var streamWriter = null;
         if (els.dreamFrame) {
           els.dreamFrame.hidden = false;
@@ -7294,7 +7514,8 @@ var BrowserOfDreamsBundle = (() => {
           referrerHtml,
           navContext: navCtx,
           imageMode: state.settings.imageMode,
-          memes: dayMemes
+          memes: dayMemes,
+          sitePlanText: formatSitePlanForPrompt(planEntry)
         });
         var messages = [
           { role: "system", content: promptBundle.systemPrompt },
@@ -7303,18 +7524,18 @@ var BrowserOfDreamsBundle = (() => {
         function onStreamChunk(delta, accumulated) {
           firstChunkReceived = true;
           var kb = (accumulated.length / 1024).toFixed(1);
-          var basePct = isStageTwo ? 50 : 10;
-          var spanPct = isStageTwo ? 46 : 85;
+          var basePct = hasPrepStages ? 50 : 10;
+          var spanPct = hasPrepStages ? 46 : 85;
           var pct = Math.min(96, basePct + Math.round(accumulated.length / 7500 * spanPct));
           if (streamWriter) {
             streamWriter.writeChunk(accumulated);
           }
           updateLoadingOverlayProgress({
-            headline: stagePrefix + "Transferring page from " + hostName + "...",
+            headline: stage + "Transferring page from " + hostName + "...",
             bytesText: kb + " KB received",
             progressPct: pct
           });
-          setStatusText(stagePrefix + "Receiving " + hostName + " (" + kb + " KB transferred)...");
+          setStatusText(stage + "Receiving " + hostName + " (" + kb + " KB transferred)...");
         }
         function onStreamComplete(finalText, error) {
           if (state.activeRequest) {
@@ -7387,19 +7608,68 @@ var BrowserOfDreamsBundle = (() => {
             mountHtmlInViewport(cleanHtml, normalizedUrl, dateStr, false);
           }
         }
-        state.activeRequest = dispatchStreaming(messages, onStreamChunk, onStreamComplete, { homepage: isHome });
+        state.activeRequest = dispatchStreaming(messages, onStreamChunk, onStreamComplete);
       }
-      if (needsHomepageFirst) {
+      function streamSitePlan(next) {
+        var stage = stageLabel(stages, "site-plan");
+        var tlProf = getTimelineDivergenceProfile(state.settings.timelineDivergence, era.year);
         showLoadingOverlay({
           eraKey: era.eraKey,
-          dialogTitle: era.browserName + " \u2014 [Stage 1/2] Building Site Homepage (" + hostName + ")",
-          headline: "[Stage 1/2] Generating canonical homepage (" + homepageUrl + ")...",
-          subline: "Establishing site branding & layout before rendering " + normalizedUrl,
-          progressPct: 6,
-          bytesText: "0.0 KB (Homepage)",
-          streamPreview: "<!-- [Stage 1/2] Synthesizing root homepage " + homepageUrl + " for cohesive site context... -->"
+          dialogTitle: era.browserName + " \u2014 " + stage + "Planning " + hostName,
+          headline: stage + "Drafting site plan for " + hostName + "...",
+          subline: "Temporal coordinates: " + era.formattedLong + " \u2022 " + tlProf.badgeText + " \u2022 Model: " + state.settings.pageModel,
+          progressPct: 4,
+          bytesText: "0.0 KB (Site Plan)"
         });
-        setStatusText("[Stage 1/2] Generating homepage " + homepageUrl + "...");
+        setStatusText(stage + "Planning " + hostName + "...");
+        var bundle = buildSitePlanPrompt({
+          url: normalizedUrl,
+          date: dateStr,
+          timelineDivergence: state.settings.timelineDivergence
+        });
+        var messages = [
+          { role: "system", content: bundle.systemPrompt },
+          { role: "user", content: bundle.userPrompt }
+        ];
+        state.activeRequest = dispatchStreaming(messages, function(_delta, accumulated) {
+          firstChunkReceived = true;
+          var kb = (accumulated.length / 1024).toFixed(1);
+          updateLoadingOverlayProgress({
+            headline: stage + "Drafting site plan for " + hostName + "...",
+            bytesText: kb + " KB (Site Plan)",
+            progressPct: Math.min(14, 4 + Math.round(accumulated.length / 3e3 * 10))
+          });
+          setStatusText(stage + "Receiving site plan (" + kb + " KB)...");
+        }, function(finalText, error) {
+          state.activeRequest = null;
+          if (error) {
+            cancelActiveGeneration();
+            renderEraErrorPage(normalizedUrl, dateStr, error);
+            return;
+          }
+          var text = normalizeSitePlan(finalText);
+          var cacheable = text.length >= MIN_SITE_PLAN_CHARS;
+          var entry = !text ? null : cacheable ? saveSitePlan({
+            domain: planDomain,
+            date: dateStr,
+            divergence: state.settings.timelineDivergence,
+            text
+          }) : { text };
+          next(entry);
+        }, { sitePlan: true });
+      }
+      function streamHomepage(planEntry, next) {
+        var stage = stageLabel(stages, "homepage");
+        var planText = formatSitePlanForPrompt(planEntry);
+        showLoadingOverlay({
+          eraKey: era.eraKey,
+          dialogTitle: era.browserName + " \u2014 " + stage + "Building Site Homepage (" + hostName + ")",
+          headline: stage + "Generating canonical homepage (" + homepageUrl + ")...",
+          subline: "Establishing site branding & layout before rendering " + normalizedUrl,
+          progressPct: 16,
+          bytesText: "0.0 KB (Homepage)"
+        });
+        setStatusText(stage + "Generating homepage " + homepageUrl + "...");
         var homePromptBundle = buildDreamPrompt({
           url: homepageUrl,
           date: dateStr,
@@ -7416,51 +7686,60 @@ var BrowserOfDreamsBundle = (() => {
             navContext: navCtx
           },
           imageMode: state.settings.imageMode,
-          memes: dayMemes
+          memes: dayMemes,
+          sitePlanText: planText
         });
         var homeMessages = [
           { role: "system", content: homePromptBundle.systemPrompt },
           { role: "user", content: homePromptBundle.userPrompt }
         ];
-        state.activeRequest = dispatchStreaming(
-          homeMessages,
-          function(_delta, accumulated) {
-            var kb = (accumulated.length / 1024).toFixed(1);
-            var pct = Math.min(48, 6 + Math.round(accumulated.length / 7500 * 42));
-            updateLoadingOverlayProgress({
-              headline: "[Stage 1/2] Generating site homepage (" + hostName + ")...",
-              bytesText: kb + " KB (Homepage)",
-              progressPct: pct,
-              streamPreview: accumulated.slice(-480)
-            });
-            setStatusText("[Stage 1/2] Receiving homepage " + homepageUrl + " (" + kb + " KB)...");
-          },
-          function(homeFinalText, homeError) {
-            if (homeError) {
-              cancelActiveGeneration();
-              renderEraErrorPage(normalizedUrl, dateStr, homeError);
-              return;
-            }
-            var homeCleanHtml = extractHtml(homeFinalText);
-            if (homeCleanHtml) {
-              state.pageCache[homeCacheKey] = {
-                url: homepageUrl,
-                date: dateStr,
-                title: extractTitleFromHtml(homeCleanHtml, homepageUrl),
-                html: homeCleanHtml,
-                timestamp: Date.now()
-              };
-              savePageCache(state.pageCache);
-              renderRecentHistory(navigateToDream);
-            }
-            streamTargetPage(homeCleanHtml || "", true);
-          },
-          { homepage: true }
-        );
-        return;
+        state.activeRequest = dispatchStreaming(homeMessages, function(_delta, accumulated) {
+          firstChunkReceived = true;
+          var kb = (accumulated.length / 1024).toFixed(1);
+          updateLoadingOverlayProgress({
+            headline: stage + "Generating site homepage (" + hostName + ")...",
+            bytesText: kb + " KB (Homepage)",
+            progressPct: Math.min(48, 16 + Math.round(accumulated.length / 7500 * 32))
+          });
+          setStatusText(stage + "Receiving homepage " + homepageUrl + " (" + kb + " KB)...");
+        }, function(homeFinalText, homeError) {
+          state.activeRequest = null;
+          if (homeError) {
+            cancelActiveGeneration();
+            renderEraErrorPage(normalizedUrl, dateStr, homeError);
+            return;
+          }
+          var homeCleanHtml = extractHtml(homeFinalText);
+          if (homeCleanHtml) {
+            state.pageCache[homeCacheKey] = {
+              url: homepageUrl,
+              date: dateStr,
+              title: extractTitleFromHtml(homeCleanHtml, homepageUrl),
+              html: homeCleanHtml,
+              timestamp: Date.now()
+            };
+            savePageCache(state.pageCache);
+            renderRecentHistory(navigateToDream);
+          }
+          next(homeCleanHtml || "");
+        });
       }
-      var existingHomepageHtml = state.pageCache[homeCacheKey] && state.pageCache[homeCacheKey].html || "";
-      streamTargetPage(existingHomepageHtml, false);
+      function beginHomepage(planEntry) {
+        if (needsHomepageFirst) {
+          streamHomepage(planEntry, function(homeHtml) {
+            streamTargetPage(homeHtml, planEntry);
+          });
+        } else {
+          streamTargetPage(existingHomepageHtml, planEntry);
+        }
+      }
+      if (needsPlan) {
+        streamSitePlan(function(entry) {
+          beginHomepage(entry);
+        });
+      } else {
+        beginHomepage(existingPlanEntry);
+      }
     }
     var cachedMemes = getCachedMemesForDate(dateStr);
     if (cachedMemes) {
@@ -7873,13 +8152,17 @@ var BrowserOfDreamsBundle = (() => {
       state.pageCache = {};
       state.imageMemoryCache = {};
       state.domainImageCache = {};
+      state.sitePlanCache = {};
       clearMemeCache();
       try {
         localStorage.removeItem("browser_of_dreams_pages_v1");
         localStorage.removeItem("browser_of_dreams_memes_v1");
         localStorage.removeItem("browser_of_dreams_domain_images_v1");
+        localStorage.removeItem(STORAGE_KEY_SITE_PLANS);
       } catch (e) {
       }
+      resetSitePlanCache();
+      state.sitePlanCache = loadSitePlanCache();
       renderRecentHistory(navigateToDream);
       fetchDayMemesFromModel({
         date: els.dateInput.value,
@@ -8061,6 +8344,8 @@ var BrowserOfDreamsBundle = (() => {
     isHomepageUrl,
     compactHtmlForContext,
     buildDreamPrompt,
+    buildSitePlanPrompt,
+    normalizeSitePlan,
     extractHtml,
     extractTitleFromHtml,
     extractDomain,

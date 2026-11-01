@@ -20,6 +20,9 @@ import { translateMessages as translateGeminiMessages } from "../src/providers/g
 import { translateResponsesMessages } from "../src/providers/opencode/protocols/responses.js";
 import { translateAnthropicMessages } from "../src/providers/opencode/protocols/anthropic.js";
 import { LocalAdapter, localUrl } from "../src/providers/local/index.js";
+import { sendOpenRouterStreaming } from "../src/providers/openrouter/chat.js";
+import { sendLocalStreaming } from "../src/providers/local/chat.js";
+import { sendGeminiStreaming } from "../src/providers/gemini/chat.js";
 
 function installRetryXHR(instances) {
   var prev = globalThis.XMLHttpRequest;
@@ -794,7 +797,7 @@ test("Command Code key survives settings migration and resolves its endpoint", (
   assert.equal(resolveConfig(settings, "commandcode").apiKey, "cmd-key");
   assert.equal(resolveConfig(settings, "commandcode").endpoint, "https://api.commandcode.ai/provider/v1");
   assert.equal(resolveConfig(settings, "commandcode").reasoningEffort, "off");
-  assert.equal(resolveConfig(settings, "commandcode").homepageReasoningEffort, "off");
+  assert.equal(resolveConfig(settings, "commandcode").sitePlanReasoningEffort, "off");
   assert.equal(hasValidCredentials(settings, "commandcode"), true);
 
   var tuned = migrateSettings({
@@ -803,12 +806,12 @@ test("Command Code key survives settings migration and resolves its endpoint", (
       commandcode: {
         apiKey: "cmd-key",
         reasoningEffort: "high",
-        homepageReasoningEffort: "low"
+        sitePlanReasoningEffort: "low"
       }
     }
   });
   assert.equal(resolveConfig(tuned, "commandcode").reasoningEffort, "high");
-  assert.equal(resolveConfig(tuned, "commandcode").homepageReasoningEffort, "low");
+  assert.equal(resolveConfig(tuned, "commandcode").sitePlanReasoningEffort, "low");
 });
 
 test("normalizeOpenRouterModelId cleans URLs and whitespace", () => {
@@ -942,7 +945,7 @@ test("resolveConfig and hasValidCredentials read the account for that provider",
     pageProvider: "gemini",
     pageModel: "gemini-3.8-flash",
     accounts: {
-      agentplatform: { apiKey: "vertex-key", projectId: "proj", vertexAuthType: "apikey", location: "global", endpoint: "https://aiplatform.googleapis.com", thinkingBudget: 256 },
+      agentplatform: { apiKey: "vertex-key", projectId: "proj", vertexAuthType: "apikey", location: "global", endpoint: "https://aiplatform.googleapis.com", reasoningEffort: "high" },
       gemini: { apiKey: "studio-key" },
       openrouter: { apiKey: "" },
       "opencode-zen": { apiKey: "", endpoint: "https://opencode.ai/zen/v1" },
@@ -952,7 +955,8 @@ test("resolveConfig and hasValidCredentials read the account for that provider",
   assert.equal(resolveConfig(settings, "gemini").apiKey, "studio-key");
   assert.equal(resolveConfig(settings, "gemini").endpoint, "https://generativelanguage.googleapis.com");
   assert.equal(resolveConfig(settings, "agentplatform").apiKey, "vertex-key");
-  assert.equal(resolveConfig(settings, "agentplatform").thinkingBudget, 256);
+  assert.equal(resolveConfig(settings, "agentplatform").reasoningEffort, "high");
+  assert.equal(resolveConfig(settings, "agentplatform").thinkingBudget, 16384);
   assert.equal(hasValidCredentials(settings, "gemini"), true);
   assert.equal(hasValidCredentials(settings, "openrouter"), false);
 
@@ -964,12 +968,58 @@ test("resolveConfig and hasValidCredentials read the account for that provider",
   assert.equal(resolveConfig(flatCommandCode, "commandcode").apiKey, "flat-cc");
 });
 
-test("OpenRouter and OpenCode streamChat disable reasoning effort by default", () => {
-  const orChatCode = fs.readFileSync(path.resolve("src/providers/openrouter/chat.js"), "utf8");
-  assert.ok(orChatCode.includes('reasoning: { effort: "none" }'), "OpenRouter streaming must set reasoning: { effort: 'none' }");
-
+test("OpenCode chat streaming disables reasoning effort", () => {
   const ocChatCode = fs.readFileSync(path.resolve("src/providers/opencode/protocols/chat.js"), "utf8");
   assert.ok(ocChatCode.includes('reasoning_effort: "none"'), "OpenCode chat streaming must set reasoning_effort: 'none'");
+});
+
+test("OpenRouter maps reasoning effort onto reasoning.effort", () => {
+  var cases = [["off", "none"], ["high", "high"], ["max", "high"]];
+  for (var i = 0; i < cases.length; i++) {
+    var instances = [];
+    var restore = installRetryXHR(instances);
+    try {
+      sendOpenRouterStreaming({
+        apiKey: "or-key",
+        model: "openai/gpt-5.2",
+        messages: [{ role: "user", content: "hi" }],
+        reasoningEffort: cases[i][0]
+      });
+    } finally {
+      restore();
+    }
+    assert.equal(instances[0].bodies[0].reasoning.effort, cases[i][1], "effort " + cases[i][0]);
+  }
+});
+
+test("Local streaming omits reasoning_effort when effort is off", () => {
+  var medium = [];
+  var restore = installRetryXHR(medium);
+  try {
+    sendLocalStreaming({
+      endpoint: "http://localhost:11434/v1",
+      model: "mock-local-model",
+      messages: [{ role: "user", content: "hi" }],
+      reasoningEffort: "medium"
+    });
+  } finally {
+    restore();
+  }
+  assert.equal(medium[0].bodies[0].reasoning_effort, "medium");
+
+  var off = [];
+  var restoreOff = installRetryXHR(off);
+  try {
+    sendLocalStreaming({
+      endpoint: "http://localhost:11434/v1",
+      model: "mock-local-model",
+      messages: [{ role: "user", content: "hi" }],
+      reasoningEffort: "off"
+    });
+  } finally {
+    restoreOff();
+  }
+  assert.equal("reasoning_effort" in off[0].bodies[0], false);
 });
 
 test("Local LLM is a keyless OpenAI-compatible provider", () => {
@@ -981,7 +1031,9 @@ test("Local LLM is a keyless OpenAI-compatible provider", () => {
   assert.deepEqual(emptyAccounts().local, {
     apiKey: "",
     endpoint: "http://localhost:11434/v1",
-    enabled: false
+    enabled: false,
+    reasoningEffort: "off",
+    sitePlanReasoningEffort: "off"
   });
   assert.equal(getProvider("local").id, "local");
 });
@@ -1128,4 +1180,39 @@ test("resolveConfig exposes local endpoint and enabled flag", () => {
   });
   assert.equal(resolveConfig(disabled, "local").localEnabled, false);
   assert.equal(hasValidCredentials(disabled, "local"), false);
+});
+
+test("Plan-sized output caps include the thinking budget", () => {
+  var cc = [];
+  var restoreCc = installRetryXHR(cc);
+  try {
+    sendCommandCodeMessagesStreaming({
+      apiKey: "cc-key",
+      model: "claude-haiku-5-5",
+      messages: [{ role: "user", content: "plan" }],
+      maxTokens: 1200,
+      reasoningEffort: "high"
+    });
+  } finally {
+    restoreCc();
+  }
+  assert.equal(cc[0].bodies[0].max_tokens, 1200 + 16384);
+  assert.deepEqual(cc[0].bodies[0].thinking, { type: "adaptive" });
+
+  var gm = [];
+  var restoreGm = installRetryXHR(gm);
+  try {
+    sendGeminiStreaming({
+      apiKey: "g-key",
+      model: "gemini-3.8-flash",
+      messages: [{ role: "user", content: "plan" }],
+      maxTokens: 1200,
+      thinkingBudget: 16384,
+      geminiAuthMethod: "gemini"
+    });
+  } finally {
+    restoreGm();
+  }
+  assert.equal(gm[0].bodies[0].generationConfig.maxOutputTokens, 1200 + 16384);
+  assert.equal(gm[0].bodies[0].generationConfig.thinkingConfig.thinkingBudget, 16384);
 });
